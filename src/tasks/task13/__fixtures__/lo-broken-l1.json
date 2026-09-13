@@ -1,0 +1,248 @@
+{
+  "meta": {
+    "seed": "233150658",
+    "level": "L1",
+    "source": "LibreOffice",
+    "description": "Форматирование LibreOffice с дефектами: разбиение на 2 абзаца, пустой абзац, лишний полужирный («атмосфере»), нулевой отступ 2-го абзаца, лишняя запятая, опечатка в таблице «679»"
+  },
+  "html": "<html>\n<head>\n\t<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"/>\n\t<title></title>\n\t<meta name=\"generator\" content=\"LibreOffice 25.8.5.2 (Windows)\"/>\n\t<style type=\"text/css\">\n\t\t@page { size: 21cm 29.7cm; margin: 2cm }\n\t\tp { line-height: 115%; margin-bottom: 0.25cm; background: transparent }\n\t\tem { font-style: italic }\n\t\tstrong { font-weight: bold }\n\t</style>\n</head>\n<body lang=\"ru-RU\" link=\"#000080\" vlink=\"#800000\" dir=\"ltr\"><p align=\"justify\" style=\"margin-bottom: 0.49cm; text-indent: 1cm\">\n<font size=\"4\" style=\"font-size: 14pt\">Марс — четвёртая,\nпо удалённости от Солнца </font><strong><font size=\"4\" style=\"font-size: 14pt\"><span style=\"font-style: normal\"><span style=\"text-decoration: none\"><b>планета</b></span></span></font></strong><font size=\"4\" style=\"font-size: 14pt\">\nСолнечн</font><font size=\"4\" style=\"font-size: 14pt\">н</font><font size=\"4\" style=\"font-size: 14pt\">ой\nсистемы.</font></p>\n<p align=\"justify\" style=\"margin-bottom: 0.49cm\"><font size=\"4\" style=\"font-size: 14pt\">Его\n поверхность имеет красноватый </font><em><font size=\"4\" style=\"font-size: 14pt\"><span style=\"font-style: normal\"><u><span style=\"font-weight: normal\">оттенок</span></u></span></font></em><font size=\"4\" style=\"font-size: 14pt\">\nиз-за высокого содержания оксида </font><em><font size=\"4\" style=\"font-size: 14pt\"><span style=\"font-style: normal\"><span style=\"text-decoration: none\"><span style=\"font-weight: normal\">железа</span></span></span></font></em><font size=\"4\" style=\"font-size: 14pt\">\nв грунте и разреженной </font><font size=\"4\" style=\"font-size: 14pt\"><i><span style=\"text-decoration: none\"><b>атмосфере</b></span></i></font><font size=\"4\" style=\"font-size: 14pt\">.</font></p>\n<p align=\"justify\" style=\"margin-bottom: 0.49cm\"><br/>\n<br/>\n\n</p>\n<center>\n\t<table width=\"344\" cellpadding=\"2\" cellspacing=\"0\">\n\t\t<col width=\"81\"/>\n\t\t<col width=\"125\"/>\n\t\t<col width=\"123\"/>\n\t\t<tr>\n\t\t\t<td width=\"81\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"justify\">\n\t\t\t\t<strong><font size=\"4\" style=\"font-size: 14pt\">Планета</font></strong></p>\n\t\t\t</td>\n\t\t\t<td width=\"125\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<strong><font size=\"4\" style=\"font-size: 14pt\">Диаметр\n\t\t\t\t(км)</font></strong></p>\n\t\t\t</td>\n\t\t\t<td width=\"123\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<strong><font size=\"4\" style=\"font-size: 14pt\">Спутники</font></strong></p>\n\t\t\t</td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<td width=\"81\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"justify\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">Марс</font></p>\n\t\t\t</td>\n\t\t\t<td width=\"125\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">679</font></p>\n\t\t\t</td>\n\t\t\t<td width=\"123\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">2</font></p>\n\t\t\t</td>\n\t\t</tr>\n\t\t<tr>\n\t\t\t<td width=\"81\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"justify\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">Венера</font></p>\n\t\t\t</td>\n\t\t\t<td width=\"125\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">12104</font></p>\n\t\t\t</td>\n\t\t\t<td width=\"123\" style=\"border: 1px solid #000000; padding-top: 0.05cm; padding-bottom: 0.16cm; padding-left: 0.32cm; padding-right: 0.05cm\"><p align=\"center\">\n\t\t\t\t<font size=\"4\" style=\"font-size: 14pt\">0</font></p>\n\t\t\t</td>\n\t\t</tr>\n\t</table>\n</center>\n<p align=\"justify\"><br/>\n<br/>\n\n</p>\n</body>\n</html>",
+  "task": {
+    "seed": "233150658",
+    "level": "L1",
+    "requirements": {
+      "fontSize": {
+        "enabled": true,
+        "pt": 14
+      },
+      "indent": {
+        "enabled": true,
+        "cm": 1
+      },
+      "bodyAlign": {
+        "enabled": true,
+        "align": "justify"
+      },
+      "emphasis": {
+        "enabled": true,
+        "bold": true,
+        "italic": true,
+        "underline": true
+      },
+      "noLineBreaks": {
+        "enabled": true
+      },
+      "noSpaceIndent": {
+        "enabled": true
+      },
+      "lineSpacing": {
+        "enabled": true,
+        "minRatio": 1,
+        "maxRatio": 1.5
+      },
+      "paraSpacing": {
+        "enabled": false,
+        "minPt": 12,
+        "maxPt": 24
+      },
+      "gapToTable": {
+        "enabled": true,
+        "minPt": 12,
+        "maxPt": 24
+      },
+      "superscript": {
+        "enabled": false
+      },
+      "subscript": {
+        "enabled": false
+      },
+      "tableSize": {
+        "enabled": true,
+        "rows": 3,
+        "cols": 3
+      },
+      "tableWidth": {
+        "enabled": true,
+        "maxRatio": 0.95
+      },
+      "tableAlign": {
+        "enabled": true,
+        "align": "center"
+      },
+      "colAlign": {
+        "enabled": true
+      },
+      "boldCells": {
+        "enabled": true
+      },
+      "cellValign": {
+        "enabled": false
+      },
+      "heading": {
+        "enabled": false,
+        "align": "center",
+        "indentCm": 0,
+        "spacingPt": 12
+      }
+    },
+    "targetText": [
+      {
+        "spans": [
+          {
+            "text": "Марс — четвёртая по удалённости от Солнца "
+          },
+          {
+            "text": "планета",
+            "b": true,
+            "i": false,
+            "u": false
+          },
+          {
+            "text": " Солнечной системы. Его поверхность имеет красноватый "
+          },
+          {
+            "text": "оттенок",
+            "b": false,
+            "i": false,
+            "u": true
+          },
+          {
+            "text": " из-за высокого содержания оксида "
+          },
+          {
+            "text": "железа"
+          },
+          {
+            "text": " в грунте и разреженной "
+          },
+          {
+            "text": "атмосфере",
+            "b": false,
+            "i": true,
+            "u": false
+          },
+          {
+            "text": "."
+          }
+        ]
+      }
+    ],
+    "targetTable": {
+      "rows": [
+        [
+          {
+            "spans": [
+              {
+                "text": "Планета",
+                "b": true
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "left"
+          },
+          {
+            "spans": [
+              {
+                "text": "Диаметр (км)",
+                "b": true
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          },
+          {
+            "spans": [
+              {
+                "text": "Спутники",
+                "b": true
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          }
+        ],
+        [
+          {
+            "spans": [
+              {
+                "text": "Марс"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "left"
+          },
+          {
+            "spans": [
+              {
+                "text": "6779"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          },
+          {
+            "spans": [
+              {
+                "text": "2"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          }
+        ],
+        [
+          {
+            "spans": [
+              {
+                "text": "Венера"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "left"
+          },
+          {
+            "spans": [
+              {
+                "text": "12104"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          },
+          {
+            "spans": [
+              {
+                "text": "0"
+              }
+            ],
+            "colSpan": 1,
+            "rowSpan": 1,
+            "align": "center"
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "score": 1,
+    "maxScore": 2,
+    "typosText": 2,
+    "typosTable": 1,
+    "failedCriteria": [
+      "bold",
+      "emptyParas",
+      "indent",
+      "paraCount"
+    ],
+    "unknownCriteria": [
+      "gapToTable"
+    ]
+  }
+}

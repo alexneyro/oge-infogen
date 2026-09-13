@@ -1,0 +1,106 @@
+@media print {
+  /* Page margins and setup */
+  @page {
+    margin: 15mm 12mm;
+    size: auto;
+  }
+
+  /* Force pure light / black on white for paper and PDF printing */
+  html,
+  body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Hide entire web interface shell and interactive UI */
+  .no-print,
+  header,
+  nav,
+  aside,
+  footer,
+  #theme-toggle-btn,
+  #mobile-menu-btn,
+  button,
+  .task-slot,
+  .status-bar,
+  .variant-config-panel,
+  .variant-sticky-header,
+  .variant-summary-section,
+  .confirmation-modal,
+  .interactive-buttons {
+    display: none !important;
+  }
+
+  /* Reveal print container */
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+  }
+
+  /* Section page break rules */
+  .task-print-block,
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 16pt !important;
+  }
+
+  .print-keys-section,
+  .print-break-before {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  /* Remove all background fills, glassmorphism, heavy borders and drop shadows */
+  .print-document * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Keep table borders clean and crisp */
+  .print-document table,
+  .print-document th,
+  .print-document td {
+    border: 1px solid #000000 !important;
+    border-collapse: collapse !important;
+  }
+
+  .print-document th {
+    background-color: #f2f2f2 !important;
+    font-weight: bold !important;
+  }
+
+  /* Link display */
+  .print-document a[href^="http"]:after,
+  .print-document a[href^="https"]:after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    font-weight: normal;
+  }
+
+  /* Code and monospace typography */
+  .print-document pre,
+  .print-document code {
+    font-family: "JetBrains Mono", Courier, monospace !important;
+    font-size: 9.5pt !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    border: 1px solid #bbbbbb !important;
+    background-color: #f8f8f8 !important;
+    color: #000000 !important;
+    padding: 3pt 5pt !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
