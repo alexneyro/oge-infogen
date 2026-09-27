@@ -3,6 +3,14 @@ import { RNG } from './utils/rng';
 
 export type Difficulty = 1 | 2 | 3;
 
+export type AppMode = 'single' | 'variant' | 'set';
+
+export const MODE_LABELS: Record<AppMode, string> = {
+  single: 'Тренажёр',
+  variant: 'Вариант',
+  set: 'Набор',
+};
+
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   1: 'Легче ОГЭ',
   2: 'Как на ОГЭ',

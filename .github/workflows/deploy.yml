@@ -43,6 +43,8 @@ jobs:
 
       - name: Build project
         run: npm run build
+        env:
+          VITE_YM_ID: ${{ vars.VITE_YM_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

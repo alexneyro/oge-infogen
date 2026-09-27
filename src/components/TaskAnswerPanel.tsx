@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Difficulty, DIFFICULTY_LABELS } from '../types';
+import { LEVEL_STYLES } from '../levelStyles';
 import { getTaskById } from '../tasks';
 import { scorePosition, PositionScore } from '../utils/scoring';
 import { runTests16, parseUserAnswer16, encodeUserAnswer16 } from '../tasks/task16';
@@ -244,13 +245,7 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
                 Задание {taskId}
               </span>
               <span
-                className={`text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded font-bold ${
-                  difficulty === 1
-                    ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
-                    : difficulty === 2
-                    ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300'
-                    : 'bg-rose-100 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300'
-                }`}
+                className={`text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded font-bold ${LEVEL_STYLES[difficulty].badge}`}
               >
                 {`L${difficulty} ${DIFFICULTY_LABELS[difficulty]}`}
               </span>
