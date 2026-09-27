@@ -56,6 +56,7 @@ import { printDocument } from '../utils/print';
 import { buildSetZipBlob } from '../utils/exportSet';
 import { saveBlob } from '../utils/download';
 import { scorePosition } from '../utils/scoring';
+import { track } from '../utils/analytics';
 import { SetCheckerBlock } from './SetCheckerBlock';
 import { TaskAnswerPanel, TaskPanelCheckState } from './TaskAnswerPanel';
 import { SessionBanner, formatBannerTime } from './SessionBanner';
@@ -642,6 +643,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
     }
 
     const result = buildSet(targetConfig);
+    track('set_created', { tasks_count: result.entries.length });
     if (import.meta.env.DEV) {
       renderTimerStartedRef.current = true;
       console.time('render');
@@ -1635,7 +1637,13 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
                 {/* Print / PDF dropdown */}
                 <div className="relative" ref={printMenuRef}>
                   <button
-                    onClick={() => setShowPrintMenu(!showPrintMenu)}
+                    onClick={() => {
+                      const next = !showPrintMenu;
+                      setShowPrintMenu(next);
+                      if (next) {
+                        track('print_opened', { mode: 'set' });
+                      }
+                    }}
                     disabled={!hasBuilt || builtEntries.length === 0}
                     className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Печать / Экспорт набора в PDF"

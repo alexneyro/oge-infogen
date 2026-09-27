@@ -40,7 +40,7 @@ describe('Bug Report & Mode Labels', () => {
     expect(report).toContain('Код набора: SET_CODE_ABC123');
     expect(report).toContain('Сид набора: SET_SEED_XYZ789');
     expect(report).toContain('Уровень сложности: 3 (Сложнее ОГЭ)');
-    expect(report).toContain('SubSeed: 202');
+    expect(report).toContain('Сид задания: 202');
     expect(report).toContain('User-Agent: MockBrowser/1.0');
     expect(report).toContain('Текст ошибки в задании набора');
   });
@@ -111,7 +111,7 @@ describe('Bug Report & Mode Labels', () => {
     expect(report).toContain('Позиция в наборе: 1 из 5');
     expect(report).toContain('Код набора: SET_CODE_ISOLATED');
     expect(report).toContain('Сид набора: SET_SEED_ISOLATED');
-    expect(report).toContain('SubSeed: 98765');
+    expect(report).toContain('Сид задания: 98765');
 
     // Категорически НЕ должен содержать сид тренажёра или номер задания тренажёра
     expect(report).not.toContain(trainerSeed);

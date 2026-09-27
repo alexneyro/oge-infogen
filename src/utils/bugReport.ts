@@ -94,7 +94,7 @@ export function buildBugReportText({
         lines.push(
           `Уровень сложности: ${foundTask.difficulty} (${DIFFICULTY_LABELS[foundTask.difficulty]})`
         );
-        lines.push(`SubSeed: ${foundTask.subSeed}`);
+        lines.push(`Сид задания: ${foundTask.subSeed}`);
       } else {
         lines.push('Задание: не относится к конкретному заданию');
         if (setInfo?.code) {

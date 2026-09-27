@@ -32,6 +32,7 @@ import { AuthStub } from './components/AuthStub';
 import { TaskBadge } from './components/TaskBadge';
 import { parseUserAnswer16 } from './tasks/task16';
 import { buildBugReportText } from './utils/bugReport';
+import { track } from './utils/analytics';
 
 export default function App() {
   // Mode state: 'single' (Task Trainer) vs 'variant' (Variant Mode) vs 'set' (Set Builder)
@@ -105,7 +106,6 @@ export default function App() {
   const [reportText, setReportText] = useState<string>('');
   const [reportTaskId, setReportTaskId] = useState<string>('all');
   const [reportCopiedOnce, setReportCopiedOnce] = useState<boolean>(false);
-  const [copiedTarget, setCopiedTarget] = useState<'email' | null>(null);
   const [clipboardFailed, setClipboardFailed] = useState<boolean>(false);
 
   // Score statistics for the current browser session
@@ -191,6 +191,8 @@ export default function App() {
       taskData
     });
 
+    track('trainer_task_generated', { number: targetTaskId, level: activeDiff });
+
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('task', targetTaskId.toString());
@@ -266,8 +268,39 @@ export default function App() {
     setReportText('');
     setReportTaskId('all');
     setReportCopiedOnce(false);
-    setCopiedTarget(null);
     setClipboardFailed(false);
+    setEmailCopied(false);
+    if (emailCopiedTimerRef.current) {
+      clearTimeout(emailCopiedTimerRef.current);
+    }
+  };
+
+  const [emailCopied, setEmailCopied] = useState<boolean>(false);
+  const emailCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (emailCopiedTimerRef.current) {
+        clearTimeout(emailCopiedTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopyEmail = async () => {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText('oge-infogen@gmail.com');
+      }
+    } catch {
+      // ignore
+    }
+    setEmailCopied(true);
+    if (emailCopiedTimerRef.current) {
+      clearTimeout(emailCopiedTimerRef.current);
+    }
+    emailCopiedTimerRef.current = setTimeout(() => {
+      setEmailCopied(false);
+    }, 2000);
   };
 
   const buildReportText = () =>
@@ -290,6 +323,7 @@ export default function App() {
         await navigator.clipboard.writeText(textToCopy);
         setReportCopiedOnce(true);
         setClipboardFailed(false);
+        track('bug_report_copied', { mode: activeMode });
       } else {
         setReportCopiedOnce(true);
         setClipboardFailed(true);
@@ -297,19 +331,6 @@ export default function App() {
     } catch {
       setReportCopiedOnce(true);
       setClipboardFailed(true);
-    }
-  };
-
-  const handleCopyEmail = async () => {
-    try {
-      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText('АДРЕС');
-        setCopiedTarget('email');
-      } else {
-        setCopiedTarget('email');
-      }
-    } catch {
-      setCopiedTarget('email');
     }
   };
 
@@ -748,7 +769,13 @@ export default function App() {
                       {/* Left: Hint status toggler */}
                       {!isSubmitted ? (
                         <button
-                          onClick={() => setShowHints(!showHints)}
+                          onClick={() => {
+                            const next = !showHints;
+                            setShowHints(next);
+                            if (next && taskInstance) {
+                              track('hint_shown', { number: taskInstance.taskId });
+                            }
+                          }}
                           className={`inline-flex items-center space-x-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                             showHints 
                               ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200' 
@@ -827,7 +854,7 @@ export default function App() {
 
         {/* FOOTER */}
         <footer className="mt-8 pt-6 border-t border-theme-border text-xs text-theme-text-muted flex flex-wrap items-center justify-between gap-3 no-print">
-          <span>Инфоген · генератор заданий и вариантов ОГЭ по информатике</span>
+          <span>Инфоген · автор: Алексей Яруллин</span>
           <button
             type="button"
             onClick={() => {
@@ -989,7 +1016,7 @@ export default function App() {
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-theme-text-muted">
-                              <span>SubSeed:</span>
+                              <span>Сид задания:</span>
                               <span className="font-mono font-semibold text-theme-text">
                                 {foundTask.subSeed}
                               </span>
@@ -1054,17 +1081,30 @@ export default function App() {
                 <div className="space-y-2">
                   <p className="text-xs text-theme-text-muted flex flex-wrap items-center gap-1.5">
                     <span>Не удалось скопировать автоматически. Скопируйте текст ниже и отправьте на</span>
+                    <a
+                      href="mailto:oge-infogen@gmail.com"
+                      className="underline hover:text-theme-text transition-colors break-all"
+                    >
+                      oge-infogen@gmail.com
+                    </a>
                     <button
                       type="button"
                       onClick={handleCopyEmail}
-                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      aria-label={emailCopied ? 'Адрес скопирован' : 'Скопировать адрес email'}
+                      title={emailCopied ? 'Скопировано' : 'Скопировать email'}
+                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1 cursor-pointer transition-colors p-0.5 rounded"
                     >
-                      <Copy className="h-3 w-3" />
-                      <span>АДРЕС</span>
+                      {emailCopied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Скопировано
+                          </span>
+                        </>
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    {copiedTarget === 'email' && (
-                      <span className="text-xs text-theme-text-muted">Адрес скопирован</span>
-                    )}
                     <span>:</span>
                   </p>
                   <textarea
@@ -1090,20 +1130,33 @@ export default function App() {
                     <span>{reportCopiedOnce ? 'Скопировать ещё раз' : 'Скопировать баг-репорт'}</span>
                   </button>
 
-                  <div className="text-xs text-theme-text-muted text-center flex items-center justify-center flex-wrap gap-1.5 pt-1">
-                    <span>Отправить на</span>
+                  <p className="text-xs text-theme-text-muted text-center flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                    <span>Скопируйте текст и отправьте на</span>
+                    <a
+                      href="mailto:oge-infogen@gmail.com"
+                      className="underline hover:text-theme-text transition-colors break-all"
+                    >
+                      oge-infogen@gmail.com
+                    </a>
                     <button
                       type="button"
                       onClick={handleCopyEmail}
-                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      aria-label={emailCopied ? 'Адрес скопирован' : 'Скопировать адрес email'}
+                      title={emailCopied ? 'Скопировано' : 'Скопировать email'}
+                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1 cursor-pointer transition-colors p-0.5 rounded"
                     >
-                      <Copy className="h-3 w-3" />
-                      <span>АДРЕС</span>
+                      {emailCopied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Скопировано
+                          </span>
+                        </>
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    {copiedTarget === 'email' && (
-                      <span className="text-xs text-theme-text-muted">Адрес скопирован</span>
-                    )}
-                  </div>
+                  </p>
                 </>
               )}
             </div>

@@ -33,6 +33,7 @@ import {
   generateVariantSeed
 } from '../variant';
 import { getAnswerKey } from '../utils/answerKey';
+import { track } from '../utils/analytics';
 import { PrintDocument } from './PrintDocument';
 import { printDocument } from '../utils/print';
 
@@ -468,6 +469,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
     };
 
     const tasks = buildVariant(cfg);
+    track('variant_created', { tasks_count: tasks.length });
     setVariantConfig(cfg);
     setVariantTasks(tasks);
     setCodeError(null);
@@ -784,7 +786,13 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                 {/* Print / PDF dropdown */}
                 <div className="relative" ref={printMenuRef}>
                   <button
-                    onClick={() => setShowPrintMenu(!showPrintMenu)}
+                    onClick={() => {
+                      const next = !showPrintMenu;
+                      setShowPrintMenu(next);
+                      if (next) {
+                        track('print_opened', { mode: 'variant' });
+                      }
+                    }}
                     className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40"
                     title="Печать / Экспорт варианта в PDF"
                   >
