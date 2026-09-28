@@ -643,16 +643,12 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
     }
 
     const result = buildSet(targetConfig);
-<<<<<<< HEAD
     const setModeCount: Record<number, number> = {};
     result.entries.forEach(e => { setModeCount[e.difficulty] = (setModeCount[e.difficulty] ?? 0) + 1; });
     const setDominantDiff = Number(
       Object.entries(setModeCount).sort((a, b) => b[1] - a[1])[0][0]
     );
     track('set_created', { tasks_count: result.entries.length, difficulty: setDominantDiff });
-=======
-    track('set_created', { tasks_count: result.entries.length });
->>>>>>> 7dc478b5169a6433293d9c149e0cdf16c4def807
     if (import.meta.env.DEV) {
       renderTimerStartedRef.current = true;
       console.time('render');
