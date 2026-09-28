@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { SessionBanner } from './SessionBanner';
 import { Difficulty, TaskInstance, DIFFICULTY_LABELS } from '../types';
+import { LEVEL_STYLES, RANDOM_LEVEL_STYLE } from '../levelStyles';
 import { OGE_TASKS, getTaskById } from '../tasks';
 import { TaskBadge } from './TaskBadge';
 import { parseUserAnswer, encodeUserAnswer } from '../tasks/task14';
@@ -32,6 +33,7 @@ import {
   generateVariantSeed
 } from '../variant';
 import { getAnswerKey } from '../utils/answerKey';
+import { track } from '../utils/analytics';
 import { PrintDocument } from './PrintDocument';
 import { printDocument } from '../utils/print';
 
@@ -467,6 +469,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
     };
 
     const tasks = buildVariant(cfg);
+    track('variant_created', { tasks_count: tasks.length });
     setVariantConfig(cfg);
     setVariantTasks(tasks);
     setCodeError(null);
@@ -505,6 +508,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
     setExpandedTasks({});
     setShowConfigPanel(false);
     resetTimer();
+    track('variant_opened_by_code', {});
 
     if (cfg.contentVersion !== CONTENT_VERSION) {
       setVersionWarning(
@@ -563,6 +567,19 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
     setIsSubmitted(true);
     setShowConfirmModal(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Аналитика: итог варианта
+    const modeCount: Record<number, number> = {};
+    difficulties.forEach(d => { modeCount[d] = (modeCount[d] ?? 0) + 1; });
+    const dominantDifficulty = Number(
+      Object.entries(modeCount).sort((a, b) => b[1] - a[1])[0][0]
+    );
+    track('variant_finished', {
+      score: totalEarnedPoints,
+      max_score: TOTAL_MAX_POINTS,
+      grade,
+      difficulty: dominantDifficulty,
+    });
   };
 
   const toggleTaskExpand = (idx: number) => {
@@ -636,7 +653,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
       </div>
 
       {/* VARIANT CONFIGURATION PANEL */}
-      <div className="bg-theme-card border border-theme-border rounded-2xl p-6 shadow-sm space-y-5">
+      <div className="bg-theme-card border border-theme-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-theme-border pb-4">
           <div>
             <h2 className="text-sm font-bold text-theme-text flex items-center space-x-2">
@@ -652,25 +669,25 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => handleSetAllDifficulties(1)}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-all"
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all ${LEVEL_STYLES[1].presetButton}`}
             >
               {`Все L1 (${DIFFICULTY_LABELS[1]})`}
             </button>
             <button
               onClick={() => handleSetAllDifficulties(2)}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition-all"
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all ${LEVEL_STYLES[2].presetButton}`}
             >
               {`Все L2 (${DIFFICULTY_LABELS[2]})`}
             </button>
             <button
               onClick={() => handleSetAllDifficulties(3)}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition-all"
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all ${LEVEL_STYLES[3].presetButton}`}
             >
               {`Все L3 (${DIFFICULTY_LABELS[3]})`}
             </button>
             <button
               onClick={handleSetRandomDifficulties}
-              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 transition-all flex items-center space-x-1"
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all flex items-center space-x-1 ${RANDOM_LEVEL_STYLE.button}`}
             >
               <Shuffle className="h-3 w-3" />
               <span>Случайно</span>
@@ -701,14 +718,10 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                       <button
                         key={level}
                         onClick={() => handleDifficultyChange(idx, level)}
-                        className={`py-1 text-[10px] font-bold rounded transition-all ${
+                        className={`py-1 text-xs font-bold rounded transition-all ${
                           isActive
-                            ? level === 1
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : level === 2
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'bg-rose-600 text-white shadow-xs'
-                            : 'bg-theme-card border border-theme-border text-theme-text-sec hover:bg-theme-bg'
+                            ? LEVEL_STYLES[level].activeButton
+                            : LEVEL_STYLES[level].inactiveButton
                         }`}
                       >
                         L{level}
@@ -787,7 +800,13 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                 {/* Print / PDF dropdown */}
                 <div className="relative" ref={printMenuRef}>
                   <button
-                    onClick={() => setShowPrintMenu(!showPrintMenu)}
+                    onClick={() => {
+                      const next = !showPrintMenu;
+                      setShowPrintMenu(next);
+                      if (next) {
+                        track('print_opened', { mode: 'variant' });
+                      }
+                    }}
                     className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40"
                     title="Печать / Экспорт варианта в PDF"
                   >
@@ -1169,13 +1188,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                               ОГЭ Задание {instance.taskId}
                             </span>
                             <span
-                              className={`text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded font-bold ${
-                                instance.difficulty === 1
-                                  ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
-                                  : instance.difficulty === 2
-                                  ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300'
-                                  : 'bg-rose-100 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300'
-                              }`}
+                              className={`text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded font-bold ${LEVEL_STYLES[instance.difficulty].badge}`}
                             >
                               {`L${instance.difficulty} ${DIFFICULTY_LABELS[instance.difficulty]}`}
                             </span>
@@ -1274,12 +1287,14 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
               taskId: t.taskId,
               difficulty: t.difficulty,
               taskData: t.taskData,
+              seed: variantConfig.seed,
             }))}
             options={{
               answers: printAnswers,
               solutions: printSolutions,
               title: 'Тренировочный вариант ОГЭ по информатике',
               code: currentCode || encodeVariant(variantConfig),
+              seed: variantConfig.seed,
             }}
           />
         </div>

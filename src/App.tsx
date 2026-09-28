@@ -18,26 +18,30 @@ import {
   Copy,
   Shuffle,
   Bug,
-  FileText
+  FileText,
+  Monitor
 } from 'lucide-react';
 import { OGE_TASKS, getTaskById } from './tasks';
-import { Difficulty, TaskInstance, DIFFICULTY_LABELS } from './types';
+import { Difficulty, TaskInstance, DIFFICULTY_LABELS, AppMode, MODE_LABELS } from './types';
+import { LEVEL_STYLES, RANDOM_LEVEL_STYLE } from './levelStyles';
 import { makeRng, hashSeed } from './utils/rng';
 import { VariantView, VariantInfo } from './components/VariantView';
-import { SetBuilderView } from './components/SetBuilderView';
+import { SetBuilderView, SetInfo } from './components/SetBuilderView';
 import { ThemeToggle } from './components/ThemeToggle';
 import { AuthStub } from './components/AuthStub';
 import { TaskBadge } from './components/TaskBadge';
 import { parseUserAnswer16 } from './tasks/task16';
+import { buildBugReportText } from './utils/bugReport';
+import { track } from './utils/analytics';
 
 export default function App() {
   // Mode state: 'single' (Task Trainer) vs 'variant' (Variant Mode) vs 'set' (Set Builder)
-  const [activeMode, setActiveMode] = useState<'single' | 'variant' | 'set'>('single');
-  const scrollPositions = useRef<Record<'single' | 'variant' | 'set', number>>(
+  const [activeMode, setActiveMode] = useState<AppMode>('single');
+  const scrollPositions = useRef<Record<AppMode, number>>(
     { single: 0, variant: 0, set: 0 }
   );
 
-  const handleModeChange = (next: 'single' | 'variant' | 'set') => {
+  const handleModeChange = (next: AppMode) => {
     if (next === activeMode) return;                       // повторный клик по своей вкладке ничего не делает
     scrollPositions.current[activeMode] = window.scrollY;   // сохранили позицию уходящего режима
     setIsMobileMenuOpen(false);
@@ -69,6 +73,8 @@ export default function App() {
 
   // Variant mode summary info for bug report
   const [variantInfo, setVariantInfo] = useState<VariantInfo | null>(null);
+  // Set mode summary info for bug report
+  const [setInfo, setSetInfo] = useState<SetInfo | null>(null);
 
   // State for active difficulty (1 - typovoy, 2 - sredniy, 3 - povyshenniy)
   const [difficulty, setDifficulty] = useState<Difficulty>(1);
@@ -100,7 +106,6 @@ export default function App() {
   const [reportText, setReportText] = useState<string>('');
   const [reportTaskId, setReportTaskId] = useState<string>('all');
   const [reportCopiedOnce, setReportCopiedOnce] = useState<boolean>(false);
-  const [copiedTarget, setCopiedTarget] = useState<'email' | null>(null);
   const [clipboardFailed, setClipboardFailed] = useState<boolean>(false);
 
   // Score statistics for the current browser session
@@ -186,6 +191,8 @@ export default function App() {
       taskData
     });
 
+    track('trainer_task_generated', { number: targetTaskId, level: activeDiff });
+
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('task', targetTaskId.toString());
@@ -244,6 +251,14 @@ export default function App() {
     if (!taskInstance || selectedTaskId === null) return;
     setShowHints(false);
     setIsSubmitted(true);
+    const taskMod = getTaskById(taskInstance.taskId);
+    const isCorrect = taskMod ? taskMod.check(taskInstance.taskData, userAnswer) : false;
+    const activeDiff = taskInstance.difficulty;
+    track('trainer_answer_checked', {
+      number: taskInstance.taskId,
+      difficulty: activeDiff,
+      correct: isCorrect ? 1 : 0,
+    });
   };
 
   const handleSelectTask = (id: number) => {
@@ -261,44 +276,53 @@ export default function App() {
     setReportText('');
     setReportTaskId('all');
     setReportCopiedOnce(false);
-    setCopiedTarget(null);
     setClipboardFailed(false);
+    setEmailCopied(false);
+    if (emailCopiedTimerRef.current) {
+      clearTimeout(emailCopiedTimerRef.current);
+    }
   };
 
-  const buildReportText = () => {
-    const isVariant = activeMode === 'variant';
-    const modeStr = isVariant ? 'Вариант' : 'Тренажёр';
+  const [emailCopied, setEmailCopied] = useState<boolean>(false);
+  const emailCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    let taskStr: string;
-    let seedStr: string;
-    let codeStr: string | null = null;
-    let diffStr: string;
-
-    if (isVariant) {
-      if (reportTaskId === 'all') {
-        taskStr = 'не относится к конкретному заданию';
-        diffStr = variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)';
-      } else {
-        const found = variantInfo?.tasks.find(t => String(t.id) === reportTaskId);
-        taskStr = found ? found.label : `Задание ${reportTaskId}`;
-        diffStr = found ? DIFFICULTY_LABELS[found.difficulty] : (variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)');
+  useEffect(() => {
+    return () => {
+      if (emailCopiedTimerRef.current) {
+        clearTimeout(emailCopiedTimerRef.current);
       }
-      seedStr = variantInfo?.seed || 'нет';
-      codeStr = variantInfo?.code || 'нет';
-    } else {
-      taskStr = selectedTaskId !== null ? String(selectedTaskId) : 'интерфейс (задание не открыто)';
-      seedStr = currentSeed || 'нет';
-      diffStr = `${difficulty} (${DIFFICULTY_LABELS[difficulty]})`;
+    };
+  }, []);
+
+  const handleCopyEmail = async () => {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText('oge-infogen@gmail.com');
+      }
+    } catch {
+      // ignore
     }
-
-    const userAgentStr = typeof navigator !== 'undefined' ? navigator.userAgent : 'не определен';
-
-    if (isVariant) {
-      return `Режим: ${modeStr}\nЗадание: ${taskStr}\nСид: ${seedStr}\nКод варианта: ${codeStr}\nУровень сложности: ${diffStr}\nUser-Agent: ${userAgentStr}\n\n${reportText.trim()}`;
+    setEmailCopied(true);
+    if (emailCopiedTimerRef.current) {
+      clearTimeout(emailCopiedTimerRef.current);
     }
-
-    return `Режим: ${modeStr}\nЗадание: ${taskStr}\nСид: ${seedStr}\nУровень сложности: ${diffStr}\nUser-Agent: ${userAgentStr}\n\n${reportText.trim()}`;
+    emailCopiedTimerRef.current = setTimeout(() => {
+      setEmailCopied(false);
+    }, 2000);
   };
+
+  const buildReportText = () =>
+    buildBugReportText({
+      activeMode,
+      selectedTaskId,
+      currentSeed,
+      difficulty,
+      variantInfo,
+      setInfo,
+      reportTaskId,
+      reportText,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'не определен',
+    });
 
   const handleCopyBugReport = async () => {
     const textToCopy = buildReportText();
@@ -307,6 +331,7 @@ export default function App() {
         await navigator.clipboard.writeText(textToCopy);
         setReportCopiedOnce(true);
         setClipboardFailed(false);
+        track('bug_report_copied', { mode: activeMode });
       } else {
         setReportCopiedOnce(true);
         setClipboardFailed(true);
@@ -314,19 +339,6 @@ export default function App() {
     } catch {
       setReportCopiedOnce(true);
       setClipboardFailed(true);
-    }
-  };
-
-  const handleCopyEmail = async () => {
-    try {
-      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText('АДРЕС');
-        setCopiedTarget('email');
-      } else {
-        setCopiedTarget('email');
-      }
-    } catch {
-      setCopiedTarget('email');
     }
   };
 
@@ -345,23 +357,26 @@ export default function App() {
     <div className={`min-h-screen transition-[color,background-color,border-color,box-shadow] duration-500 bg-theme-bg text-theme-text`}>
       
       {/* HEADER BAR */}
-      <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-theme-card border-b border-theme-border/80 transition-colors shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <span className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/10">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-              </svg>
+      <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-theme-card border-b border-theme-border/80 transition-colors shadow-sm no-print">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 lg:h-20 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center">
+          {/* Левая зона: бренд и подпись */}
+          <div className="flex items-center space-x-3 shrink-0 justify-self-start">
+            <span className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/10 shrink-0">
+              <Monitor className="w-5 h-5" strokeWidth={2} />
             </span>
-            <div>
-              <h1 className="text-lg font-bold text-theme-text tracking-tight italic" id="main-title">
-                ОГЭ Информатика: <span className="text-blue-600">Тренажёр</span>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-blue-600 dark:text-blue-400 tracking-tight whitespace-nowrap leading-[1.1]" id="main-title">
+                Инфоген
               </h1>
+              <p className="text-[11px] text-theme-text-muted leading-[1.15] max-w-[190px] hidden lg:block">
+                <span className="block">Генератор заданий и вариантов</span>
+                <span className="block">ОГЭ по&nbsp;информатике</span>
+              </p>
             </div>
           </div>
 
-          {/* Mode Switcher Navigation Tabs */}
-          <div className="hidden sm:flex items-center p-1 bg-theme-bg rounded-xl border border-theme-border/80">
+          {/* Центральная зона: переключатель режимов */}
+          <div className="justify-self-center hidden sm:flex items-center p-1 bg-theme-bg rounded-xl border border-theme-border/80">
             <button
               onClick={() => handleModeChange('single')}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
@@ -371,7 +386,7 @@ export default function App() {
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
-              <span>Тренажёр</span>
+              <span>{MODE_LABELS.single}</span>
             </button>
             <button
               onClick={() => handleModeChange('variant')}
@@ -382,7 +397,7 @@ export default function App() {
               }`}
             >
               <Layers className="h-3.5 w-3.5" />
-              <span>Вариант</span>
+              <span>{MODE_LABELS.variant}</span>
             </button>
             <button
               onClick={() => handleModeChange('set')}
@@ -393,12 +408,12 @@ export default function App() {
               }`}
             >
               <FileText className="h-3.5 w-3.5" />
-              <span>Набор</span>
+              <span>{MODE_LABELS.set}</span>
             </button>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Правая зона: тема, профиль, гамбургер */}
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0 justify-self-end">
             {/* Theme switcher */}
             <ThemeToggle />
 
@@ -424,7 +439,7 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Mobile Mode Switcher Bar */}
-        <div className="flex sm:hidden items-center justify-center p-1 mb-6 bg-theme-card rounded-xl border border-theme-border shadow-xs">
+        <div className="flex sm:hidden items-center justify-center p-1 mb-6 bg-theme-card rounded-xl border border-theme-border shadow-xs no-print">
           <button
             onClick={() => handleModeChange('single')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
@@ -434,7 +449,7 @@ export default function App() {
             }`}
           >
             <BookOpen className="h-3.5 w-3.5" />
-            <span>Тренажёр</span>
+            <span>{MODE_LABELS.single}</span>
           </button>
           <button
             onClick={() => handleModeChange('variant')}
@@ -445,7 +460,7 @@ export default function App() {
             }`}
           >
             <Layers className="h-3.5 w-3.5" />
-            <span>Вариант</span>
+            <span>{MODE_LABELS.variant}</span>
           </button>
           <button
             onClick={() => handleModeChange('set')}
@@ -456,14 +471,14 @@ export default function App() {
             }`}
           >
             <FileText className="h-3.5 w-3.5" />
-            <span>Набор</span>
+            <span>{MODE_LABELS.set}</span>
           </button>
         </div>
 
         {activeMode === 'variant' ? (
           <VariantView onVariantInfoChange={setVariantInfo} />
         ) : activeMode === 'set' ? (
-          <SetBuilderView />
+          <SetBuilderView onSetInfoChange={setSetInfo} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
@@ -480,7 +495,7 @@ export default function App() {
             </div>
 
             {/* Tasks list */}
-            <nav className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[calc(100vh-140px)] overflow-y-auto overflow-x-hidden sidebar-scroll">
+            <nav className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[calc(100vh-140px)] lg:max-h-[calc(100vh-156px)] overflow-y-auto overflow-x-hidden sidebar-scroll">
               {OGE_TASKS.map((task) => {
                 const isSelected = selectedTaskId === task.id;
                 return (
@@ -513,7 +528,7 @@ export default function App() {
           <main className="lg:col-span-8 space-y-6 min-w-0">
             
             {/* CENTRAL PARAMETERS SELECTOR CARD */}
-            <div className="bg-theme-card border border-theme-border rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="bg-theme-card border border-theme-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
               <h2 className="text-xs font-bold text-theme-text-muted uppercase tracking-wider flex items-center space-x-2">
                 <Sliders className="h-4 w-4 text-blue-600" />
                 <span>Параметры генератора</span>
@@ -525,7 +540,7 @@ export default function App() {
                   <label className="block text-xs font-bold text-theme-text-muted uppercase tracking-wide mb-2.5">
                     Уровень сложности:
                   </label>
-                  <div className="grid grid-cols-3 gap-2" id="difficulty-selector">
+                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2" id="difficulty-selector">
                     {([1, 2, 3] as Difficulty[]).map((level) => {
                       const isActive = difficulty === level;
                       return (
@@ -539,10 +554,10 @@ export default function App() {
                               handleGenerate(false, seedToKeep, { taskId: selectedTaskId, difficulty: level });
                             }
                           }}
-                          className={`py-2 px-2 text-[11px] font-semibold whitespace-nowrap rounded-lg border transition-all cursor-pointer ${
+                          className={`py-2 sm:py-2.5 px-1 sm:px-2 text-xs font-semibold whitespace-nowrap rounded-lg border transition-all cursor-pointer ${
                             isActive 
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
-                              : 'bg-theme-card border-theme-border hover:bg-theme-bg text-theme-text-sec'
+                              ? LEVEL_STYLES[level].activeButton 
+                              : LEVEL_STYLES[level].inactiveButton
                           }`}
                         >
                           {DIFFICULTY_LABELS[level]}
@@ -554,9 +569,9 @@ export default function App() {
                     <button
                       onClick={handleRandomTask}
                       id="header-random-task-btn"
-                      className="w-full py-2 px-3 text-xs font-semibold rounded-lg border border-theme-border bg-theme-bg/60 text-theme-text hover:bg-theme-bg transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                      className="w-full py-2 px-3 text-xs font-semibold rounded-lg border border-theme-border bg-theme-bg/60 text-theme-text hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-700 dark:hover:text-amber-300 hover:border-amber-200 dark:hover:border-amber-800 transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
                     >
-                      <Shuffle className="h-3.5 w-3.5 text-blue-500" />
+                      <Shuffle className="h-3.5 w-3.5" />
                       <span>Случайное задание</span>
                     </button>
                   </div>
@@ -664,18 +679,30 @@ export default function App() {
                     </button>
                     
                     {/* Simplified friendly educational badges block */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mt-8 pt-6 border-t border-theme-border/60">
-                      <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 rounded-xl text-left">
-                        <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-wider">Тренажёр — по одному номеру</span>
-                        <p className="text-[10px] text-theme-text-muted mt-1 leading-snug">Выбирайте задание ОГЭ по информатике из списка слева и решайте столько раз, сколько нужно.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mt-8 pt-6 border-t border-theme-border/60 items-stretch">
+                      <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 rounded-xl text-left flex flex-col h-full">
+                        <h4 className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-wider leading-[1.2] mb-1.5">
+                          Тренажёр — по одному номеру
+                        </h4>
+                        <p className="text-[10px] text-theme-text-muted leading-relaxed flex-1">
+                          Выбирайте задание ОГЭ по информатике из списка слева и решайте столько раз, сколько нужно.
+                        </p>
                       </div>
-                      <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-xl text-left">
-                        <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 tracking-wider">Вариант — экзамен целиком</span>
-                        <p className="text-[10px] text-theme-text-muted mt-1 leading-snug">Все 16 номеров с выбором сложности для каждого и таймером, как на настоящем ОГЭ.</p>
+                      <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-xl text-left flex flex-col h-full">
+                        <h4 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 tracking-wider leading-[1.2] mb-1.5">
+                          Вариант — экзамен целиком
+                        </h4>
+                        <p className="text-[10px] text-theme-text-muted leading-relaxed flex-1">
+                          Все 16 номеров с выбором сложности для каждого и таймером, как на настоящем ОГЭ.
+                        </p>
                       </div>
-                      <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100/50 dark:border-amber-900/30 rounded-xl text-left">
-                        <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider">Набор — свой список заданий</span>
-                        <p className="text-[10px] text-theme-text-muted mt-1 leading-snug">Задайте количество заданий каждого уровня, получите код и откройте набор потом по нему же.</p>
+                      <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100/50 dark:border-amber-900/30 rounded-xl text-left flex flex-col h-full">
+                        <h4 className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider leading-[1.2] mb-1.5">
+                          Набор — свой список заданий
+                        </h4>
+                        <p className="text-[10px] text-theme-text-muted leading-relaxed flex-1">
+                          Задайте количество заданий каждого уровня, получите код и откройте набор потом по нему же.
+                        </p>
                       </div>
                     </div>
 
@@ -696,7 +723,7 @@ export default function App() {
                       <div className="min-w-0 flex-1 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <TaskBadge id={taskInstance.taskId} size="sm" active={true} />
-                          <span className="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-theme-bg/60 text-theme-text-muted border border-theme-border">
+                          <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${LEVEL_STYLES[taskInstance.difficulty].badge}`}>
                             {DIFFICULTY_LABELS[taskInstance.difficulty]}
                           </span>
 
@@ -750,7 +777,13 @@ export default function App() {
                       {/* Left: Hint status toggler */}
                       {!isSubmitted ? (
                         <button
-                          onClick={() => setShowHints(!showHints)}
+                          onClick={() => {
+                            const next = !showHints;
+                            setShowHints(next);
+                            if (next && taskInstance) {
+                              track('hint_shown', { number: taskInstance.taskId });
+                            }
+                          }}
                           className={`inline-flex items-center space-x-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                             showHints 
                               ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200' 
@@ -828,11 +861,18 @@ export default function App() {
         )}
 
         {/* FOOTER */}
-        <footer className="mt-8 pt-6 border-t border-theme-border text-xs text-theme-text-muted flex flex-wrap items-center justify-between gap-3">
-          <span>Тренажёр ОГЭ по информатике · ИМЯ</span>
+        <footer className="mt-8 pt-6 border-t border-theme-border text-xs text-theme-text-muted flex flex-wrap items-center justify-between gap-3 no-print">
+          <span>Инфоген · автор: Алексей Яруллин</span>
           <button
             type="button"
-            onClick={() => setReportOpen(true)}
+            onClick={() => {
+              if (activeMode === 'set' && setInfo?.activePosition !== null && setInfo?.activePosition !== undefined) {
+                setReportTaskId(String(setInfo.activePosition));
+              } else {
+                setReportTaskId('all');
+              }
+              setReportOpen(true);
+            }}
             className="inline-flex items-center gap-1.5 hover:text-theme-text transition-colors cursor-pointer"
           >
             <Bug className="h-3.5 w-3.5" />
@@ -870,7 +910,7 @@ export default function App() {
             <div className="p-3 bg-theme-bg border border-theme-border rounded-xl space-y-2 text-xs">
               <div className="flex justify-between items-center text-theme-text-muted">
                 <span>Режим:</span>
-                <span className="font-semibold text-theme-text">{activeMode === 'variant' ? 'Вариант' : 'Тренажёр'}</span>
+                <span className="font-semibold text-theme-text">{MODE_LABELS[activeMode]}</span>
               </div>
 
               {activeMode === 'variant' ? (
@@ -889,6 +929,29 @@ export default function App() {
                     ))}
                   </select>
                 </div>
+              ) : activeMode === 'set' ? (
+                setInfo && setInfo.tasks.length > 0 ? (
+                  <div className="space-y-1">
+                    <label className="block text-theme-text-muted">Задание:</label>
+                    <select
+                      value={reportTaskId}
+                      onChange={(e) => setReportTaskId(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-theme-card border border-theme-border rounded-lg text-theme-text focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    >
+                      <option value="all">не относится к конкретному заданию</option>
+                      {setInfo.tasks.map((task) => (
+                        <option key={task.position} value={String(task.position)}>
+                          {task.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center text-theme-text-muted">
+                    <span>Задание:</span>
+                    <span className="font-semibold text-theme-text">не относится к конкретному заданию</span>
+                  </div>
+                )
               ) : (
                 <div className="flex justify-between items-center text-theme-text-muted">
                   <span>Задание:</span>
@@ -900,12 +963,14 @@ export default function App() {
 
               {activeMode === 'variant' ? (
                 <div className="space-y-1.5 pt-1 border-t border-theme-border/50">
-                  <div className="flex justify-between items-center text-theme-text-muted">
-                    <span>Сид:</span>
-                    <span className="font-mono font-semibold text-theme-text">
-                      {variantInfo?.seed || 'нет'}
-                    </span>
-                  </div>
+                  {variantInfo?.seed && (
+                    <div className="flex justify-between items-center text-theme-text-muted">
+                      <span>Сид:</span>
+                      <span className="font-mono font-semibold text-theme-text">
+                        {variantInfo.seed}
+                      </span>
+                    </div>
+                  )}
                   {variantInfo?.code && (
                     <div className="space-y-0.5">
                       <span className="text-theme-text-muted text-[11px]">Код варианта:</span>
@@ -915,26 +980,96 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              ) : activeMode === 'set' ? (
+                <div className="space-y-1.5 pt-1 border-t border-theme-border/50">
+                  {(() => {
+                    const foundTask =
+                      reportTaskId !== 'all'
+                        ? setInfo?.tasks.find((t) => String(t.position) === reportTaskId) ?? null
+                        : null;
+
+                    return (
+                      <>
+                        {foundTask && (
+                          <div className="flex justify-between items-center text-theme-text-muted">
+                            <span>Позиция в наборе:</span>
+                            <span className="font-semibold text-theme-text">
+                              {foundTask.position}
+                              {setInfo?.totalTasks ? ` из ${setInfo.totalTasks}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {setInfo?.code && (
+                          <div className="space-y-0.5">
+                            <span className="text-theme-text-muted text-[11px]">Код набора:</span>
+                            <div className="p-2 bg-theme-card border border-theme-border rounded-lg font-mono text-[11px] text-theme-text break-all max-h-16 overflow-y-auto select-all">
+                              {setInfo.code}
+                            </div>
+                          </div>
+                        )}
+                        {setInfo?.seed && (
+                          <div className="flex justify-between items-center text-theme-text-muted">
+                            <span>Сид набора:</span>
+                            <span className="font-mono font-semibold text-theme-text">
+                              {setInfo.seed}
+                            </span>
+                          </div>
+                        )}
+                        {foundTask ? (
+                          <>
+                            <div className="flex justify-between items-center text-theme-text-muted">
+                              <span>Уровень сложности:</span>
+                              <span className="font-semibold text-theme-text">
+                                {foundTask.difficulty} ({DIFFICULTY_LABELS[foundTask.difficulty]})
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-theme-text-muted">
+                              <span>Сид задания:</span>
+                              <span className="font-mono font-semibold text-theme-text">
+                                {foundTask.subSeed}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          setInfo?.totalTasks && setInfo.totalTasks > 0 ? (
+                            <div className="flex justify-between items-center text-theme-text-muted">
+                              <span>Всего заданий:</span>
+                              <span className="font-semibold text-theme-text">
+                                {setInfo.totalTasks}
+                              </span>
+                            </div>
+                          ) : null
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               ) : (
-                <div className="flex justify-between items-center text-theme-text-muted">
-                  <span>Сид:</span>
-                  <span className="font-mono font-semibold text-theme-text">{currentSeed || 'нет'}</span>
+                <div className="space-y-1.5 pt-1 border-t border-theme-border/50">
+                  {currentSeed && (
+                    <div className="flex justify-between items-center text-theme-text-muted">
+                      <span>Сид:</span>
+                      <span className="font-mono font-semibold text-theme-text">{currentSeed}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="flex justify-between items-center text-theme-text-muted">
-                <span>Уровень сложности:</span>
-                <span className="font-semibold text-theme-text">
-                  {activeMode === 'variant'
-                    ? (reportTaskId === 'all'
-                        ? (variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)')
-                        : (() => {
-                            const found = variantInfo?.tasks.find(t => String(t.id) === reportTaskId);
-                            return found ? DIFFICULTY_LABELS[found.difficulty] : (variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)');
-                          })())
-                    : `${difficulty} (${DIFFICULTY_LABELS[difficulty]})`}
-                </span>
-              </div>
+              {activeMode !== 'set' && (
+                <div className="flex justify-between items-center text-theme-text-muted">
+                  <span>Уровень сложности:</span>
+                  <span className="font-semibold text-theme-text">
+                    {activeMode === 'variant'
+                      ? (reportTaskId === 'all'
+                          ? (variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)')
+                          : (() => {
+                              const found = variantInfo?.tasks.find((t) => String(t.id) === reportTaskId);
+                              return found ? DIFFICULTY_LABELS[found.difficulty] : (variantInfo?.difficultyInfo || 'настраиваемая (16 заданий)');
+                            })())
+                      : `${difficulty} (${DIFFICULTY_LABELS[difficulty]})`}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Textarea */}
@@ -954,17 +1089,30 @@ export default function App() {
                 <div className="space-y-2">
                   <p className="text-xs text-theme-text-muted flex flex-wrap items-center gap-1.5">
                     <span>Не удалось скопировать автоматически. Скопируйте текст ниже и отправьте на</span>
+                    <a
+                      href="mailto:oge-infogen@gmail.com"
+                      className="underline hover:text-theme-text transition-colors break-all"
+                    >
+                      oge-infogen@gmail.com
+                    </a>
                     <button
                       type="button"
                       onClick={handleCopyEmail}
-                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      aria-label={emailCopied ? 'Адрес скопирован' : 'Скопировать адрес email'}
+                      title={emailCopied ? 'Скопировано' : 'Скопировать email'}
+                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1 cursor-pointer transition-colors p-0.5 rounded"
                     >
-                      <Copy className="h-3 w-3" />
-                      <span>АДРЕС</span>
+                      {emailCopied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Скопировано
+                          </span>
+                        </>
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    {copiedTarget === 'email' && (
-                      <span className="text-xs text-theme-text-muted">Адрес скопирован</span>
-                    )}
                     <span>:</span>
                   </p>
                   <textarea
@@ -990,20 +1138,33 @@ export default function App() {
                     <span>{reportCopiedOnce ? 'Скопировать ещё раз' : 'Скопировать баг-репорт'}</span>
                   </button>
 
-                  <div className="text-xs text-theme-text-muted text-center flex items-center justify-center flex-wrap gap-1.5 pt-1">
-                    <span>Отправить на</span>
+                  <p className="text-xs text-theme-text-muted text-center flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                    <span>Скопируйте текст и отправьте на</span>
+                    <a
+                      href="mailto:oge-infogen@gmail.com"
+                      className="underline hover:text-theme-text transition-colors break-all"
+                    >
+                      oge-infogen@gmail.com
+                    </a>
                     <button
                       type="button"
                       onClick={handleCopyEmail}
-                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      aria-label={emailCopied ? 'Адрес скопирован' : 'Скопировать адрес email'}
+                      title={emailCopied ? 'Скопировано' : 'Скопировать email'}
+                      className="text-xs text-theme-text-muted hover:text-theme-text inline-flex items-center gap-1 cursor-pointer transition-colors p-0.5 rounded"
                     >
-                      <Copy className="h-3 w-3" />
-                      <span>АДРЕС</span>
+                      {emailCopied ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Скопировано
+                          </span>
+                        </>
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
                     </button>
-                    {copiedTarget === 'email' && (
-                      <span className="text-xs text-theme-text-muted">Адрес скопирован</span>
-                    )}
-                  </div>
+                  </p>
                 </>
               )}
             </div>

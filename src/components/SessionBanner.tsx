@@ -45,7 +45,7 @@ export const SessionBanner: React.FC<SessionBannerProps> = ({
   return (
     <div
       id="session-banner"
-      className="sticky top-20 z-30 bg-theme-card/95 backdrop-blur-md border border-theme-border rounded-2xl px-3 sm:px-4 h-14 max-h-14 flex items-center justify-between sm:justify-end gap-2 shadow-md w-full sm:w-fit sm:ml-auto overflow-hidden shrink-0"
+      className="sticky top-16 lg:top-20 z-30 bg-theme-card/95 backdrop-blur-md border border-theme-border rounded-2xl px-3 sm:px-4 h-14 max-h-14 flex items-center justify-between sm:justify-end gap-2 shadow-md w-full sm:w-fit sm:ml-auto overflow-hidden shrink-0"
     >
       {/* Title + badges on the left (only if title is provided) */}
       {title && (
