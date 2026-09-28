@@ -20,6 +20,7 @@ import { parseAnswersText, ParseResult } from '../utils/parseAnswers';
 import { readTextFile } from '../utils/readTextFile';
 import { checkSet, CheckedRow, runProgramsForSet } from '../utils/checkAnswers';
 import { gradeFromScore } from '../utils/scoring';
+import { track } from '../utils/analytics';
 
 export interface SetCheckerBlockProps {
   entries: SetEntry[];
@@ -170,6 +171,13 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     if (newSubs.length > 0) {
       setSubmissions((prev) => [...prev, ...newSubs]);
       setActiveSubId(newSubs[0].id);
+
+      const totalStudents = newSubs.length;
+      const avgScore = Math.round(
+        newSubs.reduce((acc, s) => acc + s.rows.reduce((a, r) => a + r.score, 0), 0) / totalStudents
+      );
+      track('set_answers_uploaded', { students_count: totalStudents });
+      track('set_answers_checked', { students_count: totalStudents, avg_score: avgScore });
     }
     setIsProcessing(false);
   };

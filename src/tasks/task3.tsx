@@ -1251,7 +1251,20 @@ export function buildExplanation(
   lines.push(`Шаг 2. Раскрытие отрицаний и связок`);
 
   if (hasNotNode(tree) || !wantTrue) {
-    lines.push(`После раскрытия отрицания выражение равносильно: ${renderExplanationNodeText(workingTree)}.`);
+    let step2Phrase: string;
+    if (tree.type === 'not' && !wantTrue) {
+      // НЕ(A) ложно → внутренность истинна, де Морган не применяется
+      step2Phrase = `НЕ(...) ложно, когда его внутренняя часть истинна. Ищем X, при котором:`;
+    } else if (wantTrue && compoundNot !== null) {
+      // wantTrue + есть НЕ(А И В) внутри → применялся де Морган
+      step2Phrase = `После раскрытия по закону де Моргана выражение равносильно:`;
+    } else if (!wantTrue && (tree.type === 'and' || tree.type === 'or')) {
+      // !wantTrue + корень and/or → отрицали всё дерево через де Морган
+      step2Phrase = `После раскрытия отрицания по закону де Моргана выражение равносильно:`;
+    } else {
+      step2Phrase = `После раскрытия отрицания выражение равносильно:`;
+    }
+    lines.push(`${step2Phrase} ${renderExplanationNodeText(workingTree)}.`);
   }
 
   if (workingTree.type === 'and') {
