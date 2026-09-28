@@ -469,12 +469,16 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
     };
 
     const tasks = buildVariant(cfg);
+<<<<<<< HEAD
     const variantModeCount: Record<number, number> = {};
     difficulties.forEach(d => { variantModeCount[d] = (variantModeCount[d] ?? 0) + 1; });
     const variantDominantDiff = Number(
       Object.entries(variantModeCount).sort((a, b) => b[1] - a[1])[0][0]
     );
     track('variant_created', { tasks_count: tasks.length, difficulty: variantDominantDiff });
+=======
+    track('variant_created', { tasks_count: tasks.length });
+>>>>>>> 7dc478b5169a6433293d9c149e0cdf16c4def807
     setVariantConfig(cfg);
     setVariantTasks(tasks);
     setCodeError(null);
