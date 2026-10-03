@@ -17,6 +17,7 @@ export interface PrintDocumentOptions {
   solutions: boolean;
   title: string;
   code: string;
+  seed?: string;
 }
 
 export interface PrintDocumentProps {
@@ -150,7 +151,7 @@ export function PrintDocument({ tasks, options }: PrintDocumentProps) {
         <section className="print-keys-section break-before-page pt-6 mt-8">
           <header className="border-b-2 border-black pb-2 mb-4">
             <h2 className="text-lg font-bold uppercase tracking-wider text-black">
-              Ответы: {options.title} ({options.code})
+              Ключи для учителя: {options.title} ({options.code}{options.seed ? ` • Сид: ${options.seed}` : ''})
             </h2>
             <p className="text-xs text-gray-600">Дата генерации ключей: {currentDate}</p>
           </header>
@@ -184,6 +185,15 @@ export function PrintDocument({ tasks, options }: PrintDocumentProps) {
           </table>
         </section>
       )}
+
+      {/* DOCUMENT FOOTER */}
+      <footer className="mt-8 pt-4 border-t border-gray-400 text-[8pt] text-gray-500 flex justify-between items-center font-mono">
+        <span>Инфоген · {options.title || 'Тренировочный вариант ОГЭ по информатике'}</span>
+        <span>
+          Код: {options.code}
+          {options.seed ? ` • Вариант: ${options.seed}` : ''}
+        </span>
+      </footer>
     </div>
   );
 }

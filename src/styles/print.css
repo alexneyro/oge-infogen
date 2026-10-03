@@ -19,10 +19,8 @@
 
   /* Hide entire web interface shell and interactive UI */
   .no-print,
-  header,
   nav,
   aside,
-  footer,
   #theme-toggle-btn,
   #mobile-menu-btn,
   button,

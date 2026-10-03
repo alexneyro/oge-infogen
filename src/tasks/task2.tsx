@@ -78,6 +78,56 @@ export const EN_ALPHABET = [
   'U', 'V', 'W', 'X', 'Y', 'Z'
 ];
 
+// Пулы символьных кодов для уровней 1–2 (длина кодов 1–3 символа)
+export const SYMBOL_POOLS_L1L2: string[][] = [
+  // Двоичный
+  ['0', '1', '00', '01', '10', '11', '000', '001', '010', '011', '100', '101', '110', '111'],
+  // Троичный
+  ['0', '1', '2', '00', '01', '02', '10', '11', '12', '20', '21', '22', '000', '001', '012', '021', '102', '120', '210', '222'],
+  // Кружки
+  ['•', '○', '••', '•○', '○•', '○○', '•••', '••○', '•○•', '○••', '○○•', '○○○'],
+  // Точки и o
+  ['.', 'o', '..', '.o', 'o.', 'oo', '...', '..o', '.o.', 'o..', 'oo.', 'ooo'],
+  // Спецсимволы
+  ['@', '~', '+', '#', '*', '@~', '+@', '~#', '#*', '@+', '~+', '+#', '*@', '~*', '@~+', '+#*'],
+  // Треугольники
+  ['▲', '▼', '▲▲', '▲▼', '▼▲', '▼▼', '▲▲▲', '▲▲▼', '▲▼▲', '▼▲▲'],
+  // Звёзды
+  ['★', '☆', '★☆', '☆★', '★★', '☆☆', '★★★', '★★☆', '☆★☆', '☆★★'],
+  // Ромбы
+  ['◆', '◇', '◆◇', '◇◆', '◆◆', '◇◇', '◆◆◇', '◇◆◇', '◆◇◆'],
+  // Плюсы и минусы
+  ['+', '-', '++', '+-', '-+', '--', '+++', '++-', '+-+', '-++'],
+  // Стрелки
+  ['→', '↑', '→→', '→↑', '↑→', '↑↑', '→→→', '→→↑', '→↑→', '↑→→', '↑↑→', '↑↑↑'],
+  // Слэши
+  ['/', '\\', '//', '/\\', '\\/', '\\\\', '///', '//\\', '/\\/', '\\//', '\\\\/'],
+  // Восклицания
+  ['!', '?', '!!', '!?', '?!', '??', '!!!', '!!?', '!?!', '?!!', '??!', '???'],
+];
+
+// Пулы символьных кодов для уровня 3 (длина кодов 1–4 символа)
+export const SYMBOL_POOLS_L3: string[][] = [
+  // Двоичный расширенный
+  ['0', '1', '00', '01', '10', '11', '000', '001', '010', '100', '111',
+   '0000', '0001', '0010', '0011', '1000', '1001', '1010', '1100', '1111'],
+  // Троичный расширенный
+  ['0', '1', '2', '00', '01', '10', '11', '20', '22', '000', '001', '012',
+   '0000', '0001', '0012', '0102', '1002', '1200', '2001', '2222'],
+  // Треугольники расширенные
+  ['▲', '▼', '▲▲', '▲▼', '▼▲', '▼▼', '▲▲▲', '▲▲▼', '▲▼▲', '▼▲▲',
+   '▲▲▲▲', '▲▲▲▼', '▲▲▼▲', '▲▼▲▲', '▼▲▲▲', '▼▼▲▲', '▼▲▼▲', '▼▼▼▼'],
+  // Звёзды расширенные
+  ['★', '☆', '★☆', '☆★', '★★', '☆☆', '★★★', '★★☆', '☆★☆', '☆★★',
+   '★★★★', '★★★☆', '★★☆★', '★☆★★', '☆★★★', '☆☆★★', '☆★☆★', '☆☆☆☆'],
+  // Кружки расширенные
+  ['•', '○', '••', '•○', '○•', '○○', '•••', '••○', '•○•', '○••',
+   '••••', '•••○', '••○•', '•○••', '○•••', '○○••', '○•○•', '○○○○'],
+  // Стрелки расширенные
+  ['→', '↑', '→→', '→↑', '↑→', '↑↑', '→→→', '→→↑', '→↑→', '↑→→',
+   '→→→→', '→→→↑', '→→↑→', '→↑→→', '↑→→→', '↑↑→→', '↑→↑→', '↑↑↑↑'],
+];
+
 /**
  * Finds ALL possible prefix decompositions of encoded message using codeTable.
  */
@@ -213,17 +263,7 @@ function generateCodeTable(letters: string[], alphabet: CodeAlphabet, rng: RNG):
   let candidates: string[] = [];
 
   if (alphabet === 'symbols') {
-    const symbolPools = [
-      ['0', '1', '00', '01', '10', '11', '000', '001', '010', '011', '100', '101', '110', '111'],
-      ['•', '○', '••', '•○', '○•', '○○', '•••', '••○', '•○•', '○••', '○○•', '○○○'],
-      ['.', 'o', '..', '.o', 'o.', 'oo', '...', '..o', '.o.', 'o..', 'oo.', 'ooo'],
-      ['@', '~', '+', '#', '*', '@~', '+@', '~#', '#*', '@+', '~+', '+#', '*@', '~*', '@~+', '+#*'],
-      ['▲', '▼', '▲▲', '▲▼', '▼▲', '▼▼', '▲▲▲', '▲▲▼', '▲▼▲', '▼▲▲'],
-      ['★', '☆', '★☆', '☆★', '★★', '☆☆', '★★★', '★★☆', '☆★☆', '☆★★'],
-      ['◆', '◇', '◆◇', '◇◆', '◆◆', '◇◇', '◆◆◇', '◇◆◇', '◆◇◆'],
-      ['+', '-', '++', '+-', '-+', '--', '+++', '++-', '+-+', '-++']
-    ];
-    candidates = rng.pick(symbolPools);
+    candidates = rng.pick(SYMBOL_POOLS_L1L2);
   } else {
     // morse
     candidates = [
@@ -341,13 +381,119 @@ function areSetsEqual(a: Set<string>, b: Set<string>): boolean {
 }
 
 /**
+ * Generates Subtype 1 Binary: "find_unique_cipher" with symbols/binary code table (Level 2)
+ */
+function generateSubtype1BinaryTask(difficulty: Difficulty, rng: RNG): Task2Data | null {
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const pool = rng.pick(difficulty === 3 ? SYMBOL_POOLS_L3 : SYMBOL_POOLS_L1L2);
+    const candidates = pool;
+    const numCodes = rng.int(5, 6);
+    const shuffledPool = rng.shuffle(candidates);
+    const selectedCodes = shuffledPool.slice(0, numCodes);
+    const lengths = new Set(selectedCodes.map(c => c.length));
+    if (lengths.size < 2) continue;
+
+    const shuffledLetters = rng.shuffle(RU_ALPHABET);
+    const table: CodeEntry[] = selectedCodes.map((code, idx) => ({
+      letter: shuffledLetters[idx],
+      code
+    }));
+
+    const numCiphers = rng.int(3, 4);
+    const numAmbiguous = numCiphers - 1;
+
+    const candidateCiphers: { cipher: string; decodings: string[] }[] = [];
+    for (let c = 0; c < 30; c++) {
+      const wordLen = rng.int(3, 5);
+      const chosenEntries: CodeEntry[] = [];
+      for (let i = 0; i < wordLen; i++) {
+        chosenEntries.push(rng.pick(table));
+      }
+      const cipher = chosenEntries.map(e => e.code).join('');
+      if (candidateCiphers.some(cand => cand.cipher === cipher)) continue;
+
+      const paths = findAllDecodings(cipher, table);
+      const decodings = paths.map(p => p.map(s => s.letter).join(''));
+      candidateCiphers.push({ cipher, decodings });
+    }
+
+    const uniques = candidateCiphers.filter(e => e.decodings.length === 1);
+    const ambiguous = candidateCiphers.filter(e => e.decodings.length >= 2 && e.decodings.length <= 5);
+
+    if (uniques.length >= 1 && ambiguous.length >= numAmbiguous) {
+      const selectedUnique = rng.pick(uniques);
+      const selectedAmbiguous = rng.shuffle(ambiguous).slice(0, numAmbiguous);
+
+      const allCiphers = rng.shuffle([selectedUnique, ...selectedAmbiguous]);
+      const ciphersList = allCiphers.map(e => e.cipher);
+      const targetWord = selectedUnique.decodings[0];
+      const cipherDecodingsMap: Record<string, string[]> = {};
+      allCiphers.forEach(e => {
+        cipherDecodingsMap[e.cipher] = e.decodings;
+      });
+
+      const statementIntro = 'Ваня шифрует русские слова, записывая вместо каждой буквы её код по таблице (без пробелов). Некоторые шифровки можно расшифровать несколькими способами.';
+
+      const ciphersText = ciphersList.map((c, i) => `${i + 1}) ${c}`).join('\n');
+      const questionText = `Даны ${numCiphers} ${numCiphers === 3 ? 'шифровки' : 'шифровки'}:\n${ciphersText}\n\nТолько одна из них расшифровывается единственным способом. Найдите её и расшифруйте. В ответе запишите полученное слово.`;
+
+      const shortHint = '• Сопоставляйте фрагменты каждой шифровки с кодами букв из кодовой таблицы.\n' +
+        '• Для каждой шифровки попробуйте составить все возможные слова.\n' +
+        '• Ищите ту шифровку, для которой возможен строго один вариант разбиения на коды из таблицы.';
+
+      const expLines: string[] = [];
+      expLines.push('ШАГ 1. СТРУКТУРА КОДОВОЙ ТАБЛИЦЫ И УСЛОВИЕ');
+      expLines.push('Для кодирования букв используется неравномерный код.');
+      expLines.push('Записи без пробелов могут допускать неоднозначность, так как фрагменты кодов могут перекрываться.');
+      expLines.push('');
+      expLines.push('ШАГ 2. АНАЛИЗ ПРЕДЛОЖЕННЫХ ШИФРОВОК');
+      expLines.push('');
+
+      allCiphers.forEach((item, idx) => {
+        expLines.push(`Шифровка ${idx + 1}: ${item.cipher}`);
+        if (item.decodings.length > 1) {
+          expLines.push(`  Статус: НЕОДНОЗНАЧНА (всего вариантов: ${item.decodings.length}).`);
+          expLines.push(`  Примеры расшифровок: "${item.decodings[0]}" и "${item.decodings[1]}".`);
+        } else {
+          expLines.push(`  Статус: ЕДИНСТВЕННЫЙ ВАРИАНТ!`);
+          expLines.push(`  Единственная расшифровка даёт слово: "${item.decodings[0]}".`);
+        }
+        expLines.push('');
+      });
+
+      expLines.push('ШАГ 3. ИТОГОВЫЙ ВЫВОД');
+      expLines.push(`Только шифровка "${selectedUnique.cipher}" имеет ровно один вариант расшифровки.`);
+      expLines.push(`Ответ: ${targetWord}.`);
+
+      return {
+        level: difficulty,
+        subType: 'find_unique_cipher',
+        alphabet: 'symbols',
+        lang: 'cyrillic',
+        correctAnswer: targetWord,
+        statementIntro,
+        questionText,
+        shortHint,
+        explanation: expLines.join('\n'),
+        ciphers: ciphersList,
+        uniqueCipher: selectedUnique.cipher,
+        cipherDecodingsMap,
+        targetWord,
+        codeTable: table
+      };
+    }
+  }
+  return null;
+}
+
+/**
  * Generates Subtype 1: "find_unique_cipher" (Level 3)
  */
 function generateSubtype1Task(difficulty: Difficulty, rng: RNG): Task2Data | null {
   for (let attempt = 0; attempt < 300; attempt++) {
     const candidates: string[] = [];
 
-    for (let c = 0; c < 20; c++) {
+    for (let c = 0; c < 35; c++) {
       const wordLen = rng.int(3, 5); // 3..5 letters
       const wordChars: string[] = [];
       for (let i = 0; i < wordLen; i++) {
@@ -360,7 +506,10 @@ function generateSubtype1Task(difficulty: Difficulty, rng: RNG): Task2Data | nul
       }
     }
 
-    if (candidates.length < 4) continue;
+    const numCiphers = difficulty === 3 ? rng.int(5, 6) : 4;
+    const numAmb = numCiphers - 1;
+
+    if (candidates.length < numCiphers) continue;
 
     const evaluated = candidates.map(str => ({
       cipher: str,
@@ -370,9 +519,9 @@ function generateSubtype1Task(difficulty: Difficulty, rng: RNG): Task2Data | nul
     const uniques = evaluated.filter(e => e.decodings.length === 1);
     const ambiguous = evaluated.filter(e => e.decodings.length >= 2);
 
-    if (uniques.length >= 1 && ambiguous.length >= 3) {
+    if (uniques.length >= 1 && ambiguous.length >= numAmb) {
       const selectedUnique = rng.pick(uniques);
-      const shuffledAmb = rng.shuffle(ambiguous).slice(0, 3);
+      const shuffledAmb = rng.shuffle(ambiguous).slice(0, numAmb);
 
       const allFour = rng.shuffle([selectedUnique, ...shuffledAmb]);
       const ciphersList = allFour.map(e => e.cipher);
@@ -385,7 +534,7 @@ function generateSubtype1Task(difficulty: Difficulty, rng: RNG): Task2Data | nul
       const statementIntro = 'Ваня шифрует русские слова, записывая вместо каждой буквы её номер в алфавите (без пробелов). Некоторые шифровки можно расшифровать несколькими способами. Например, 311333 может означать ВАЛЯ, ЭЛЯ или ВААВВВ.';
 
       const ciphersText = ciphersList.map((c, i) => `${i + 1}) ${c}`).join('\n');
-      const questionText = `Даны 4 шифровки:\n${ciphersText}\n\nТолько одна из них расшифровывается единственным способом. Найдите её и расшифруйте. В ответе запишите полученное слово.`;
+      const questionText = `Даны ${numCiphers} ${numCiphers === 4 ? 'шифровки' : 'шифровок'}:\n${ciphersText}\n\nТолько одна из них расшифровывается единственным способом. Найдите её и расшифруйте. В ответе запишите полученное слово.`;
 
       const shortHint = '• Номера букв в алфавите: от 1 (А) до 33 (Я).\n' +
         '• Число «1» может означать букву А (1) или быть частью двузначного номера (10–19).\n' +
@@ -442,7 +591,7 @@ function generateSubtype1TaskEn(difficulty: Difficulty, rng: RNG): Task2Data | n
   for (let attempt = 0; attempt < 300; attempt++) {
     const candidates: string[] = [];
 
-    for (let c = 0; c < 20; c++) {
+    for (let c = 0; c < 35; c++) {
       const wordLen = rng.int(3, 5); // 3..5 letters
       const wordChars: string[] = [];
       for (let i = 0; i < wordLen; i++) {
@@ -455,7 +604,10 @@ function generateSubtype1TaskEn(difficulty: Difficulty, rng: RNG): Task2Data | n
       }
     }
 
-    if (candidates.length < 4) continue;
+    const numCiphers = difficulty === 3 ? rng.int(5, 6) : 4;
+    const numAmb = numCiphers - 1;
+
+    if (candidates.length < numCiphers) continue;
 
     const evaluated = candidates.map(str => ({
       cipher: str,
@@ -465,9 +617,9 @@ function generateSubtype1TaskEn(difficulty: Difficulty, rng: RNG): Task2Data | n
     const uniques = evaluated.filter(e => e.decodings.length === 1);
     const ambiguous = evaluated.filter(e => e.decodings.length >= 2);
 
-    if (uniques.length >= 1 && ambiguous.length >= 3) {
+    if (uniques.length >= 1 && ambiguous.length >= numAmb) {
       const selectedUnique = rng.pick(uniques);
-      const shuffledAmb = rng.shuffle(ambiguous).slice(0, 3);
+      const shuffledAmb = rng.shuffle(ambiguous).slice(0, numAmb);
 
       const allFour = rng.shuffle([selectedUnique, ...shuffledAmb]);
       const ciphersList = allFour.map(e => e.cipher);
@@ -480,7 +632,7 @@ function generateSubtype1TaskEn(difficulty: Difficulty, rng: RNG): Task2Data | n
       const statementIntro = 'Ваня шифрует английские слова, записывая вместо каждой буквы её номер в английском алфавите (без пробелов). Некоторые шифровки можно расшифровать несколькими способами.';
 
       const ciphersText = ciphersList.map((c, i) => `${i + 1}) ${c}`).join('\n');
-      const questionText = `Даны 4 шифровки:\n${ciphersText}\n\nТолько одна из них расшифровывается единственным способом. Найдите её и расшифруйте. В ответе запишите полученное слово.\n\nОбратите внимание: в задании используется английский алфавит (A=1, B=2, ..., Z=26). Ответ запишите латинскими буквами.`;
+      const questionText = `Даны ${numCiphers} ${numCiphers === 4 ? 'шифровки' : 'шифровок'}:\n${ciphersText}\n\nТолько одна из них расшифровывается единственным способом. Найдите её и расшифруйте. В ответе запишите полученное слово.\n\nОбратите внимание: в задании используется английский алфавит (A=1, B=2, ..., Z=26). Ответ запишите латинскими буквами.`;
 
       const shortHint = '• Номера букв в английском алфавите: от 1 (A) до 26 (Z).\n' +
         '• Число «1» может означать букву A (1) или быть частью двузначного номера (10–19).\n' +
@@ -814,6 +966,125 @@ function getFallbackTask(difficulty: Difficulty, char: string): Task2Data {
 }
 
 /**
+ * Generates standard single-message decode_word or count_letters task.
+ */
+function generateStandardTask(
+  difficulty: Difficulty,
+  subType: 'decode_word' | 'count_letters',
+  lang: 'cyrillic' | 'latin',
+  rng: RNG,
+  char: string
+): Task2Data | null {
+  const alphabets: CodeAlphabet[] = difficulty === 1
+    ? ['symbols']
+    : ['symbols', 'morse'];
+
+  const alphabet = rng.pick(alphabets);
+
+  let wordMinLen: number;
+  let wordMaxLen: number;
+  let tableMinLetters: number;
+  let tableMaxLetters: number;
+
+  if (subType === 'count_letters') {
+    tableMinLetters = 6;
+    tableMaxLetters = 8;
+    wordMinLen = 4;
+    wordMaxLen = Math.max(4, tableMinLetters - 1); // слово всегда короче таблицы
+  } else if (difficulty === 1) {
+    tableMinLetters = 5;
+    tableMaxLetters = 6;
+    wordMinLen = 3;
+    wordMaxLen = 5;
+  } else if (difficulty === 2) {
+    tableMinLetters = 5;
+    tableMaxLetters = 6;
+    wordMinLen = 4;
+    wordMaxLen = 6;
+  } else {
+    // difficulty 3
+    tableMinLetters = 5;
+    tableMaxLetters = 6;
+    wordMinLen = 5;
+    wordMaxLen = 8;
+  }
+
+  const cyrPool = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т'];
+  const latinPool = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+  const letterPool = lang === 'latin' ? latinPool : cyrPool;
+
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const shuffledLetters = rng.shuffle(letterPool);
+    const numLetters = rng.int(tableMinLetters, tableMaxLetters);
+    const tableLetters = shuffledLetters.slice(0, numLetters);
+
+    const table = generateCodeTable(tableLetters, alphabet, rng);
+    if (!table) continue;
+
+    const targetLen = rng.int(wordMinLen, subType === 'count_letters' ? numLetters - 1 : wordMaxLen);
+
+    const candidates = rng.shuffle(tableLetters);
+    if (candidates.length < targetLen) continue;
+    const wordLetters = candidates.slice(0, targetLen);
+
+    const targetWord = wordLetters.join('');
+
+    const encoded = targetWord.split('').map(c => {
+      const entry = table.find(t => t.letter === c);
+      return entry ? entry.code : '';
+    }).join('');
+
+    if (!encoded) continue;
+
+    const analysis = solveDecodings(encoded, table);
+    const totalUnfiltered = analysis.length;
+    const validFiltered = analysis.filter(p => p.validUnderConstraint);
+
+    if (totalUnfiltered > 1 && validFiltered.length === 1) {
+      const singleValid = validFiltered[0];
+
+      const statementIntro = `Разведчик ${char} прислал зашифрованную радиограмму, записанную с помощью кодовой таблицы.`;
+
+      let questionText = '';
+      let correctAnswer = '';
+
+      if (subType === 'decode_word') {
+        questionText = lang === 'latin'
+          ? 'Расшифруйте сообщение, если известно, что буквы в нём не повторяются. В ответе запишите полученную последовательность букв.\n\nОбратите внимание: в задании используется английский алфавит. Ответ запишите латинскими буквами.'
+          : 'Расшифруйте сообщение, если известно, что буквы в нём не повторяются. В ответе запишите полученную последовательность букв.';
+        correctAnswer = singleValid.word;
+      } else {
+        questionText = 'Сколько букв содержалось в исходном сообщении, если известно, что буквы в нём не повторяются?';
+        correctAnswer = String(singleValid.word.length);
+      }
+
+      const taskData: Task2Data = {
+        level: difficulty,
+        subType,
+        constraintType: 'no_repeats',
+        alphabet,
+        lang,
+        codeTable: table,
+        encodedMessage: encoded,
+        targetWord: singleValid.word,
+        correctAnswer,
+        statementIntro,
+        constraintText: 'Буквы в сообщении не повторяются.',
+        questionText,
+        shortHint: buildShortHint(alphabet),
+        explanation: '',
+        decodingsAnalysis: analysis
+      };
+
+      taskData.explanation = buildExplanation(taskData);
+      return taskData;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Task2 module export according to task contract.
  */
 export const task2: TaskModule = {
@@ -828,111 +1099,84 @@ export const task2: TaskModule = {
     const char = pickStable(CHARACTERS, seed, `task2:character:L${difficulty}`, (s) => s);
 
     if (difficulty === 3) {
-      const p = rng.next();
-      if (p < 0.25) {
-        const t1 = generateSubtype1Task(difficulty, rng);
-        if (t1) return t1;
-      } else if (p < 0.5) {
-        const t1en = generateSubtype1TaskEn(difficulty, rng);
-        if (t1en) return t1en;
-      } else if (p < 0.75) {
-        const t2 = generateSubtype2Task(difficulty, rng, char);
-        if (t2) return t2;
+      // 6 подтипов примерно поровну (~16% каждый):
+      // 1. decode_word кириллица
+      // 2. decode_word латиница
+      // 3. find_repeating_letters кириллица
+      // 4. find_repeating_letters латиница
+      // 5. find_unique_cipher числовой русский (generateSubtype1Task)
+      // 6. find_unique_cipher числовой английский (generateSubtype1TaskEn)
+      const choice = rng.int(1, 6);
+      let task: Task2Data | null = null;
+
+      if (choice === 1) {
+        task = generateStandardTask(difficulty, 'decode_word', 'cyrillic', rng, char);
+      } else if (choice === 2) {
+        task = generateStandardTask(difficulty, 'decode_word', 'latin', rng, char);
+      } else if (choice === 3) {
+        task = generateSubtype2Task(difficulty, rng, char);
+      } else if (choice === 4) {
+        task = generateSubtype2TaskEn(difficulty, rng, char);
+      } else if (choice === 5) {
+        task = generateSubtype1Task(difficulty, rng);
       } else {
-        const t2en = generateSubtype2TaskEn(difficulty, rng, char);
-        if (t2en) return t2en;
+        task = generateSubtype1TaskEn(difficulty, rng);
       }
+
+      if (task) return task;
+
       const fallbacks = [
-        () => generateSubtype1Task(difficulty, rng),
-        () => generateSubtype1TaskEn(difficulty, rng),
+        () => generateStandardTask(difficulty, 'decode_word', 'cyrillic', rng, char),
+        () => generateStandardTask(difficulty, 'decode_word', 'latin', rng, char),
         () => generateSubtype2Task(difficulty, rng, char),
-        () => generateSubtype2TaskEn(difficulty, rng, char)
+        () => generateSubtype2TaskEn(difficulty, rng, char),
+        () => generateSubtype1Task(difficulty, rng),
+        () => generateSubtype1TaskEn(difficulty, rng)
       ];
       for (const fn of fallbacks) {
         const res = fn();
         if (res) return res;
       }
+      return getFallbackTask(difficulty, char);
     }
 
-    const subType: SubType = difficulty === 1
-      ? 'decode_word'
-      : (rng.next() < 0.5 ? 'decode_word' : 'count_letters');
+    if (difficulty === 2) {
+      // 4 подтипа примерно поровну (25% каждый):
+      // 1. decode_word — символы или морзе, слова 4–6 букв
+      // 2. count_letters — символы или морзе, с фейковой буквой в таблице
+      // 3. find_repeating_letters — только кириллица
+      // 4. find_unique_cipher_binary — только кириллица
+      const choice = rng.int(1, 4);
+      let task: Task2Data | null = null;
 
-    const alphabets: CodeAlphabet[] = difficulty === 1
-      ? ['symbols']
-      : ['symbols', 'morse'];
-
-    const alphabet = rng.pick(alphabets);
-
-    const wordMinLen = difficulty === 1 ? 3 : 5;
-    const wordMaxLen = difficulty === 1 ? 5 : 8;
-
-    const letterPool = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т'];
-
-    for (let attempt = 0; attempt < 300; attempt++) {
-      const shuffledLetters = rng.shuffle(letterPool);
-      const numLetters = rng.int(5, 6);
-      const tableLetters = shuffledLetters.slice(0, numLetters);
-
-      const table = generateCodeTable(tableLetters, alphabet, rng);
-      if (!table) continue;
-
-      const targetLen = rng.int(wordMinLen, wordMaxLen);
-
-      const candidates = rng.shuffle(tableLetters);
-      if (candidates.length < targetLen) continue;
-      const wordLetters = candidates.slice(0, targetLen);
-
-      const targetWord = wordLetters.join('');
-
-      const encoded = targetWord.split('').map(c => {
-        const entry = table.find(t => t.letter === c);
-        return entry ? entry.code : '';
-      }).join('');
-
-      if (!encoded) continue;
-
-      const analysis = solveDecodings(encoded, table);
-      const totalUnfiltered = analysis.length;
-      const validFiltered = analysis.filter(p => p.validUnderConstraint);
-
-      if (totalUnfiltered > 1 && validFiltered.length === 1) {
-        const singleValid = validFiltered[0];
-
-        const statementIntro = `Разведчик ${char} прислал зашифрованную радиограмму, записанную с помощью кодовой таблицы.`;
-
-        let questionText = '';
-        let correctAnswer = '';
-
-        if (subType === 'decode_word') {
-          questionText = `Расшифруйте сообщение, если известно, что буквы в нём не повторяются. В ответе запишите полученную последовательность букв.`;
-          correctAnswer = singleValid.word;
-        } else {
-          questionText = `Сколько букв содержалось в исходном сообщении, если известно, что буквы в нём не повторяются?`;
-          correctAnswer = String(singleValid.word.length);
-        }
-
-        const taskData: Task2Data = {
-          level: difficulty,
-          subType,
-          constraintType: 'no_repeats',
-          alphabet,
-          codeTable: table,
-          encodedMessage: encoded,
-          targetWord: singleValid.word,
-          correctAnswer,
-          statementIntro,
-          constraintText: 'Буквы в сообщении не повторяются.',
-          questionText,
-          shortHint: buildShortHint(alphabet),
-          explanation: '',
-          decodingsAnalysis: analysis
-        };
-
-        taskData.explanation = buildExplanation(taskData);
-        return taskData;
+      if (choice === 1) {
+        task = generateStandardTask(difficulty, 'decode_word', 'cyrillic', rng, char);
+      } else if (choice === 2) {
+        task = generateStandardTask(difficulty, 'count_letters', 'cyrillic', rng, char);
+      } else if (choice === 3) {
+        task = generateSubtype2Task(difficulty, rng, char);
+      } else {
+        task = generateSubtype1BinaryTask(difficulty, rng);
       }
+
+      if (task) return task;
+
+      const fallbacks = [
+        () => generateStandardTask(difficulty, 'decode_word', 'cyrillic', rng, char),
+        () => generateStandardTask(difficulty, 'count_letters', 'cyrillic', rng, char),
+        () => generateSubtype2Task(difficulty, rng, char),
+        () => generateSubtype1BinaryTask(difficulty, rng)
+      ];
+      for (const fn of fallbacks) {
+        const res = fn();
+        if (res) return res;
+      }
+      return getFallbackTask(difficulty, char);
     }
+
+    // difficulty === 1 (easy): всегда decode_word, alphabet: symbols, слова 3–5 букв
+    const easyTask = generateStandardTask(1, 'decode_word', 'cyrillic', rng, char);
+    if (easyTask) return easyTask;
 
     return getFallbackTask(difficulty, char);
   },
@@ -950,27 +1194,7 @@ export const task2: TaskModule = {
           </StatementText>
 
           {/* Code Table or Alphabet Table */}
-          {isUniqueType ? (
-            <SubBlock>
-              <div className="flex items-center justify-between mb-2">
-                <BlockLabel className="mb-0">Алфавит с номерами букв</BlockLabel>
-                <span className="text-xs font-medium text-theme-text-muted">
-                  {taskData.lang === 'latin' ? '1 — A ... 26 — Z' : '1 — А ... 33 — Я'}
-                </span>
-              </div>
-              <div className="grid grid-cols-6 sm:grid-cols-11 gap-1.5 text-center text-xs">
-                {(taskData.lang === 'latin' ? EN_ALPHABET : RU_ALPHABET).map((char, idx) => (
-                  <div
-                    key={idx}
-                    className="p-1.5 rounded-lg bg-theme-bg/60 border border-theme-border flex flex-col items-center"
-                  >
-                    <span className="font-bold text-blue-600 dark:text-blue-400 text-sm">{char}</span>
-                    <span className="font-mono text-theme-text-muted">{idx + 1}</span>
-                  </div>
-                ))}
-              </div>
-            </SubBlock>
-          ) : taskData.codeTable ? (
+          {taskData.codeTable ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-theme-text-muted">
                 <BlockLabel className="mb-0">Кодовая таблица</BlockLabel>
@@ -999,6 +1223,26 @@ export const task2: TaskModule = {
                 </tbody>
               </DataTable>
             </div>
+          ) : isUniqueType ? (
+            <SubBlock>
+              <div className="flex items-center justify-between mb-2">
+                <BlockLabel className="mb-0">Алфавит с номерами букв</BlockLabel>
+                <span className="text-xs font-medium text-theme-text-muted">
+                  {taskData.lang === 'latin' ? '1 — A ... 26 — Z' : '1 — А ... 33 — Я'}
+                </span>
+              </div>
+              <div className="grid grid-cols-6 sm:grid-cols-11 gap-1.5 text-center text-xs">
+                {(taskData.lang === 'latin' ? EN_ALPHABET : RU_ALPHABET).map((char, idx) => (
+                  <div
+                    key={idx}
+                    className="p-1.5 rounded-lg bg-theme-bg/60 border border-theme-border flex flex-col items-center"
+                  >
+                    <span className="font-bold text-blue-600 dark:text-blue-400 text-sm">{char}</span>
+                    <span className="font-mono text-theme-text-muted">{idx + 1}</span>
+                  </div>
+                ))}
+              </div>
+            </SubBlock>
           ) : null}
 
           {/* Encoded Message Box */}
