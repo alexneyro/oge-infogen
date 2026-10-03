@@ -346,7 +346,7 @@ export const WORKS: Work[] = [
     title: 'Капитанская дочка',
     file: 'kapitanskaya_dochka.txt',
     displayName: 'Капитанская_дочка.txt',
-    path: 'pushkin/kapitanskaya_dochka.txt',
+    path: 'pushkin/pushkin_kapitanskaya_dochka.txt',
     subdir: 'Пушкин',
     isStub: true,
     characters: [
