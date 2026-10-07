@@ -332,6 +332,9 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
   const [replacements, setReplacements] = useState<Record<number, number>>(
     () => savedState?.replacements ?? {}
   );
+  const [builtReplacements, setBuiltReplacements] = useState<Record<number, number>>(
+    () => savedState?.replacements ?? {}
+  );
   const [activePosition, setActivePosition] = useState<number | null>(null);
 
   // Stopwatch & Completion state
@@ -406,11 +409,21 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
     if (!hasBuilt) return false;
     if (title.trim() !== builtTitle) return true;
     if (!builtSlots) return true;
-    return slots.some((s, i) => {
+    const slotsChanged = slots.some((s, i) => {
       const b = builtSlots[i];
       return !b || s.taskId !== b.taskId || s.n1 !== b.n1 || s.n2 !== b.n2 || s.n3 !== b.n3 || s.nR !== b.nR;
     });
-  }, [hasBuilt, title, builtTitle, slots, builtSlots]);
+    if (slotsChanged) return true;
+
+    const builtReplKeys = Object.keys(builtReplacements ?? {}).sort().join(',');
+    const currReplKeys = Object.keys(replacements).sort().join(',');
+    if (builtReplKeys !== currReplKeys) return true;
+    const builtReplVals = Object.values(builtReplacements ?? {}).sort().join(',');
+    const currReplVals = Object.values(replacements).sort().join(',');
+    if (builtReplVals !== currReplVals) return true;
+
+    return false;
+  }, [hasBuilt, title, builtTitle, slots, builtSlots, builtReplacements, replacements]);
 
   // Current config object
   const currentConfig: SetConfig = useMemo(
@@ -662,6 +675,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
     setBuiltTitle(rawTitle);
     setHasBuilt(true);
     setReplacements({});
+    setBuiltReplacements({});
     setInputCode('');
     setSeedFromLoadedCode('');
     resetSessionProgress();
@@ -703,14 +717,13 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
 
     setSeedFromLoadedCode(decoded.seed);
     const targetTitle = decoded.title?.trim() || effectiveTitle;
-    if (decoded.title) {
-      setTitle(decoded.title);
-    }
+    setTitle(targetTitle);
     const normalizedSlots = normalizeSlots(decoded.slots);
     setSlots(normalizedSlots);
 
     const decodedReplacements = decoded.replacements || {};
     setReplacements(decodedReplacements);
+    setBuiltReplacements(decodedReplacements);
 
     const result = buildSet({
       seed: decoded.seed,
@@ -749,6 +762,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
       [position]: newSubSeed,
     };
     setReplacements(nextReplacements);
+    setBuiltReplacements(nextReplacements);
 
     const targetConfig: SetConfig = {
       seed: builtSeed,
@@ -766,7 +780,6 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
 
     const result = buildSet(targetConfig);
     setBuiltEntries(result.entries);
-    setTimeout(() => firstTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
     setBuiltCode(newCode);
 
     setUserAnswers((prev) => {
@@ -889,7 +902,6 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
         const result = buildSet(currentConfig);
         entriesToExport = result.entries;
         setBuiltEntries(result.entries);
-        setTimeout(() => firstTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
         setBuiltCode(currentShortCode);
       }
       const { blob, missing } = await buildSetZipBlob(entriesToExport, currentConfig, {
@@ -1576,15 +1588,13 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
             </button>
           </div>
 
-          {showTeacherBlock && (
-            <div className="mt-4">
-              <SetCheckerBlock
-                entries={builtEntries}
-                currentSetCode={currentShortCode}
-                fileCodeLabel={currentFileCode}
-              />
-            </div>
-          )}
+          <div className={`mt-4 ${showTeacherBlock ? '' : 'hidden'}`}>
+            <SetCheckerBlock
+              entries={builtEntries}
+              currentSetCode={currentShortCode}
+              fileCodeLabel={currentFileCode}
+            />
+          </div>
         </div>
       )}
 

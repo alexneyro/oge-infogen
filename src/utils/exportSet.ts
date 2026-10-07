@@ -36,6 +36,9 @@ export function generateNotepadContent(entries: SetEntry[], cfg: SetConfig): str
       lines.push('--- начало программы ---');
       lines.push('');
       lines.push('--- конец программы ---');
+    } else if (entry.taskId === 13) {
+      lines.push(`# задание 13 — если выполнено, замените "не сделал" на "сделал"`);
+      lines.push(`${entry.position}: не сделал`);
     } else if (entry.taskId === 16) {
       lines.push(`# задание 16, язык Python`);
       lines.push(`${entry.position}:`);
@@ -137,6 +140,13 @@ export async function buildSetZipBlob(
   } else if (hasTask16) {
     instructions.push(
       '4. Практическое задание 16 (Python): решение можно вставить в блок блокнота («--- начало программы ---») или сохранить в файл-заготовку «_программа.py».'
+    );
+  }
+
+  const hasTask13 = entries.some((e) => e.taskId === 13);
+  if (hasTask13) {
+    instructions.push(
+      `${instructions.length + 1}. Задание 13 (Текстовый редактор): если задание выполнено, ученик должен написать "сделал" в строке блокнота. Учитель проверяет работу вручную через генератор.`
     );
   }
 

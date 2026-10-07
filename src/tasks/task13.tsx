@@ -12,7 +12,7 @@ import { generateTask13, Task13, Task13Data } from './task13/generate';
 export type { Task13, Task13Data };
 export { generateTask13 };
 
-const defaultEmptyPasted: PastedDoc = {
+export const defaultEmptyPasted: PastedDoc = {
   headingIndex: null,
   paragraphs: [],
   table: null,
