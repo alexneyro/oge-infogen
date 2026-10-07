@@ -156,7 +156,7 @@ export const Task14PieChart: React.FC<{ chartData: { district: string; count: nu
       </div>
 
       <div className="space-y-2 text-xs font-mono max-h-60 overflow-y-auto pr-2">
-        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-sans">
+        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 font-sans">
           Легенда и подписи данных:
         </div>
         {slices.map((slice, idx) => (
@@ -165,7 +165,7 @@ export const Task14PieChart: React.FC<{ chartData: { district: string; count: nu
               className="w-3.5 h-3.5 rounded-sm shrink-0 border border-white/20"
               style={{ backgroundColor: slice.color }}
             />
-            <span className="text-slate-200 font-sans font-medium min-w-[80px]">
+            <span className="text-slate-700 dark:text-slate-200 font-sans font-medium min-w-[80px]">
               {slice.district}:
             </span>
             <span className="text-blue-600 dark:text-blue-400 font-bold">
