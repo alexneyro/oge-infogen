@@ -658,27 +658,33 @@ function generateLevel2(rng: RNG): Task5Data {
       const bCmdNum = rng.next() < 0.5 ? 1 : 2;
       const otherCmdNum = bCmdNum === 1 ? 2 : 1;
 
-      const bTypeRand = rng.next();
+      const secretB = rng.int(2, 6); // 2..6
+
+      const bTypes: Array<'add' | 'sub' | 'mul'> = ['add', 'sub', 'mul'];
+      const bType = rng.pick(bTypes);
+
+      const mulPool = [2, 3, 4, 5];
+      const addPool = [1, 2, 3, 4];
+      const subPool = [1, 2, 3];
+
       let bCmd: CommandSpec;
       let otherCmd: CommandSpec;
 
-      const secretB = rng.int(2, 6); // 2..6
-
-      if (bTypeRand < 0.35) {
-        // sub b + mul K
-        const mulK = rng.int(2, 3);
-        bCmd = { num: bCmdNum, type: 'sub', param: 'b', label: 'Вычти b' };
-        otherCmd = { num: otherCmdNum, type: 'mul', param: mulK, label: `Умножь на ${mulK}` };
-      } else if (bTypeRand < 0.70) {
-        // add b + mul K
-        const mulK = rng.int(2, 3);
+      if (bType === 'add') {
+        const mulK = rng.pick(mulPool);
         bCmd = { num: bCmdNum, type: 'add', param: 'b', label: 'Прибавь b' };
         otherCmd = { num: otherCmdNum, type: 'mul', param: mulK, label: `Умножь на ${mulK}` };
+      } else if (bType === 'sub') {
+        const mulK = rng.pick(mulPool);
+        bCmd = { num: bCmdNum, type: 'sub', param: 'b', label: 'Вычти b' };
+        otherCmd = { num: otherCmdNum, type: 'mul', param: mulK, label: `Умножь на ${mulK}` };
       } else {
-        // mul b + add K
-        const addK = rng.int(1, 3);
+        const useAdd = rng.next() < 0.5;
+        const k = useAdd ? rng.pick(addPool) : rng.pick(subPool);
         bCmd = { num: bCmdNum, type: 'mul', param: 'b', label: 'Умножь на b' };
-        otherCmd = { num: otherCmdNum, type: 'add', param: addK, label: `Прибавь ${addK}` };
+        otherCmd = useAdd
+          ? { num: otherCmdNum, type: 'add', param: k, label: `Прибавь ${k}` }
+          : { num: otherCmdNum, type: 'sub', param: k, label: `Вычти ${k}` };
       }
 
       const cmd1 = bCmdNum === 1 ? bCmd : otherCmd;

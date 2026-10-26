@@ -166,7 +166,14 @@ function getDisplayUserAnswer(taskId: number, rawAnswer: string): string | null 
   if (taskId === 16) {
     const parsed = parseUserAnswer16(rawAnswer);
     const trimmedCode = (parsed.code || '').trim();
-    return trimmedCode ? trimmedCode : null;
+    if (!trimmedCode) return null;
+    if (parsed.total > 0) {
+      return `тесты: ${parsed.passed}/${parsed.total}\n${trimmedCode}`;
+    }
+    if (parsed.score >= 0) {
+      return `тесты: не запускались\n${trimmedCode}`;
+    }
+    return trimmedCode;
   }
   const trimmed = (rawAnswer || '').trim();
   return trimmed ? trimmed : null;
@@ -1000,11 +1007,27 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                               {(() => {
                                 const displayUser = getDisplayUserAnswer(instance.taskId, st.userAnswer);
                                 if (displayUser === null) {
+                                  return <span className="text-theme-text-muted font-normal italic">нет ответа</span>;
+                                }
+                                if (instance.taskId === 16) {
+                                  const lines = displayUser.split('\n');
+                                  const hasTestPrefix = lines[0]?.startsWith('тесты:');
+                                  const testLine = hasTestPrefix ? lines[0] : 'тесты: не запускались';
+                                  const codeLines = hasTestPrefix ? lines.slice(1).join('\n') : displayUser;
                                   return (
-                                    <span className="text-theme-text-muted font-normal italic">нет ответа</span>
+                                    <div className="space-y-1">
+                                      <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap">
+                                        {testLine}
+                                      </span>
+                                      {codeLines && (
+                                        <pre className="whitespace-pre-wrap break-words text-[11px] leading-snug font-mono max-w-[320px] max-h-[7.5rem] overflow-y-auto px-2 py-1 rounded bg-theme-bg border border-theme-border text-left text-theme-text">
+                                          {codeLines}
+                                        </pre>
+                                      )}
+                                    </div>
                                   );
                                 }
-                                if ([13, 15, 16].includes(instance.taskId)) {
+                                if ([13, 15].includes(instance.taskId)) {
                                   return (
                                     <pre className="whitespace-pre-wrap break-words text-[11px] leading-snug font-mono max-w-[320px] max-h-[7.5rem] overflow-y-auto px-2 py-1 rounded bg-theme-bg border border-theme-border text-left">
                                       {displayUser}
