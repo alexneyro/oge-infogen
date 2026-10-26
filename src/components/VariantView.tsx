@@ -778,7 +778,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                 <span className="text-xs font-bold text-theme-text uppercase tracking-wider">
                   Вариант {encodeVariant(variantConfig)}
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
+                <span className="text-[10px] font-sans tabular-nums px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
                   16 заданий
                 </span>
                 {isSubmitted && (
@@ -789,7 +789,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
               </div>
 
               <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-                <div className="bg-theme-bg border border-theme-border font-mono text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs truncate">
+                <div className="bg-theme-bg border border-theme-border font-sans tabular-nums text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs truncate">
                   {currentCode}
                 </div>
 

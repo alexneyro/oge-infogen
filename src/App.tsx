@@ -84,6 +84,7 @@ export default function App() {
   
   // Current active generated task instance
   const [taskInstance, setTaskInstance] = useState<TaskInstance | null>(null);
+  const taskCardRef = useRef<HTMLDivElement>(null);
   
   // Inputs for task answers
   const [userAnswer, setUserAnswer] = useState<string>('');
@@ -154,6 +155,18 @@ export default function App() {
     setIsSubmitted(false);
     setShowHints(false);
     lastCountedRef.current = null;
+    setTimeout(() => {
+      const el = taskCardRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const OFFSET = 115;
+      const THRESHOLD = 120;
+      // скроллить только если верх карточки выше навбара
+      if (rect.top < OFFSET - THRESHOLD) {
+        const targetY = window.scrollY + rect.top - OFFSET;
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+      }
+    }, 50);
 
     const activeDiff = options?.difficulty ?? difficulty;
 
@@ -711,6 +724,7 @@ export default function App() {
                   
                   /* ACTIVE TASK VISUALS AND RENDERING */
                   <motion.div
+                    ref={taskCardRef}
                     key={taskInstance.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}

@@ -1608,7 +1608,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
                 <span className="text-xs font-bold text-theme-text uppercase tracking-wider">
                   {builtTitle || effectiveTitle}
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
+                <span className="text-[10px] font-sans tabular-nums px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
                   {builtEntries.length} {plural(builtEntries.length, 'задание', 'задания', 'заданий')}
                 </span>
                 {isFinished && (
@@ -1619,7 +1619,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
               </div>
 
               <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap gap-2">
-                <div className="bg-theme-bg border border-theme-border font-mono text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs break-all">
+                <div className="bg-theme-bg border border-theme-border font-sans tabular-nums text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs break-all">
                   {builtCode}
                 </div>
 
@@ -1802,7 +1802,7 @@ export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
                   <div className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">
                     {summaryStats.totalScore} из {summaryStats.totalMaxScore} баллов
                   </div>
-                  <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text font-mono">
+                  <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text font-sans tabular-nums">
                     Время: <strong className="text-theme-text">{formatBannerTime(elapsedSeconds)}</strong>
                   </div>
                   <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs font-medium text-theme-text">

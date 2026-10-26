@@ -149,24 +149,25 @@ export function formatCondition(model: ProgramModel, lang: Language): string {
   }
 }
 
-export function renderProgram(model: ProgramModel, lang: Language): string {
+export function renderProgram(model: ProgramModel, lang: Language, hasA = false): string {
   const cond = formatCondition(model, lang);
+  const effectiveHasA = hasA || model.clause1?.value === 'A' || model.clause2?.value === 'A';
 
   switch (lang) {
     case 'Python':
       return `s = int(input())
 t = int(input())
-if ${cond}:
+${effectiveHasA ? 'A = int(input())\n' : ''}if ${cond}:
     print("YES")
 else:
     print("NO")`;
 
     case 'Паскаль':
-      return `var s, t: integer;
+      return `var ${effectiveHasA ? 's, t, A' : 's, t'}: integer;
 begin
   readln(s);
   readln(t);
-  if ${cond} then
+${effectiveHasA ? '  readln(A);\n' : ''}  if ${cond} then
     writeln('YES')
   else
     writeln('NO')
@@ -175,9 +176,9 @@ end.`;
     case 'Алгоритмический':
       return `алг
 нач
-  цел s, t
+  цел ${effectiveHasA ? 's, t, A' : 's, t'}
   ввод s, t
-  если ${cond} то
+${effectiveHasA ? '  ввод A\n' : ''}  если ${cond} то
     вывод "YES"
   иначе
     вывод "NO"
@@ -185,10 +186,10 @@ end.`;
 кон`;
 
     case 'Бейсик':
-      return `DIM s, t AS INTEGER
+      return `DIM ${effectiveHasA ? 's, t, A' : 's, t'} AS INTEGER
 INPUT s
 INPUT t
-IF ${cond} THEN
+${effectiveHasA ? 'INPUT A\n' : ''}IF ${cond} THEN
   PRINT "YES"
 ELSE
   PRINT "NO"
@@ -199,8 +200,8 @@ ENDIF`;
 using namespace std;
 
 int main() {
-    int s, t;
-    cin >> s >> t;
+    int ${effectiveHasA ? 's, t, A' : 's, t'};
+    cin >> ${effectiveHasA ? 's >> t >> A' : 's >> t'};
     if ${cond}
         cout << "YES";
     else
@@ -1084,7 +1085,8 @@ print(result)`;
 const Task6Renderer: React.FC<{ taskData: any; state: TaskModuleState }> = ({ taskData, state }) => {
   const [selectedLang, setSelectedLang] = useState<Language>('Python');
 
-  const codeText = renderProgram(taskData.model, selectedLang);
+  const hasA = taskData.model?.clause1?.value === 'A' || taskData.model?.clause2?.value === 'A';
+  const codeText = renderProgram(taskData.model, selectedLang, hasA);
 
   return (
     <div className="space-y-4">
