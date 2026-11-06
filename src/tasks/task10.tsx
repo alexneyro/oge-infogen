@@ -98,8 +98,8 @@ const generateCompareThreeNumbers = (rng?: RNG) => {
  * - Subtype A: Sum of digits (translated to/from base 10 and 2, 8, 16)
  * - Subtype B: Count of units/zeros in binary (translated from decimal to base 2)
  */
-const generateSumOrCountOfDigits = (rng?: RNG) => {
-  const isSumQuestion = (rng ? rng.next() : Math.random()) < 0.5;
+const generateSumOrCountOfDigits = (rng?: RNG, forcedSubtype?: 'sum' | 'count') => {
+  const isSumQuestion = forcedSubtype !== undefined ? forcedSubtype === 'sum' : (rng ? rng.next() : Math.random()) < 0.5;
 
   let statement = '';
   let correctAnswer = '';
@@ -153,7 +153,7 @@ const generateSumOrCountOfDigits = (rng?: RNG) => {
 
   if (isSumQuestion) {
     // SUBTYPE A: Sum of digits (system 2, 8, 16 is translated to/from system 10)
-    const decimalValue = rng ? rng.int(50, 500) : Math.floor(Math.random() * (500 - 50 + 1)) + 50;
+    const decimalValue = rng ? rng.int(30, 255) : Math.floor(Math.random() * (255 - 30 + 1)) + 30;
     const nonDecBases = [2, 8, 16];
     let fromBase = 10;
     let toBase = 10;
@@ -208,7 +208,7 @@ const generateSumOrCountOfDigits = (rng?: RNG) => {
 
   } else {
     // SUBTYPE B: Count of ones or zeros in binary representation
-    const decimalValue = rng ? rng.int(50, 500) : Math.floor(Math.random() * (500 - 50 + 1)) + 50;
+    const decimalValue = rng ? rng.int(30, 255) : Math.floor(Math.random() * (255 - 30 + 1)) + 30;
     const fromBase = 10;
     const toBase = 2;
 
@@ -317,9 +317,9 @@ const generateMixedBaseExpression = (rng?: RNG) => {
 
   let exprStr = '';
   if (numOperands === 2) {
-    exprStr = `${str1} (основание ${base1}) ${displayOp1} ${str2} (основание ${base2})`;
+    exprStr = `${str1}_${base1} ${displayOp1} ${str2}_${base2}`;
   } else {
-    exprStr = `${str1} (основание ${base1}) ${displayOp1} ${str2} (основание ${base2}) ${displayOp2} ${str3} (основание ${base3})`;
+    exprStr = `${str1}_${base1} ${displayOp1} ${str2}_${base2} ${displayOp2} ${str3}_${base3}`;
   }
 
   const statement = `Вычислите значение выражения:\n${exprStr}\n\nОтвет запишите в десятичной системе счисления. В ответе укажите только число.`;
@@ -674,6 +674,90 @@ const renderTextWithSubscripts = (text: string): React.ReactNode => {
   return <>{parts}</>;
 };
 
+/**
+ * Generator for Level 3 (Hard) - Any base to Any base translation [2..16]
+ */
+const generateAnyToAnyTranslation = (rng?: RNG) => {
+  const allBases = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  const fromBase = rng ? rng.pick(allBases) : allBases[Math.floor(Math.random() * allBases.length)];
+  let toBase = fromBase;
+  while (toBase === fromBase) {
+    toBase = rng ? rng.pick(allBases) : allBases[Math.floor(Math.random() * allBases.length)];
+  }
+
+  const decimalValue = rng ? rng.int(30, 255) : Math.floor(Math.random() * (255 - 30 + 1)) + 30;
+
+  const fromStr = decimalValue.toString(fromBase).toUpperCase();
+  const toStr = decimalValue.toString(toBase).toUpperCase();
+
+  const statement = `Переведите число ${fromStr} из системы счисления с основанием ${fromBase} в систему счисления с основанием ${toBase}. В ответе укажите только число.`;
+
+  let shortHint = '';
+  if (fromBase === 10) {
+    shortHint = `Чтобы перевести десятичное число ${fromStr} в систему счисления с основанием ${toBase}, выполните последовательное деление числа на ${toBase} с остатком. Запишите все полученные остатки в обратном порядке — снизу вверх, это и будет искомым числом.`;
+  } else if (toBase === 10) {
+    shortHint = `Чтобы перевести число ${fromStr} из системы счисления с основанием ${fromBase} в десятичную, разложите его по степеням основания ${fromBase}. Пронумеруйте разряды числа ${fromStr} справа налево (начиная с 0), умножьте каждую цифру на ${fromBase} в соответствующей степени и сложите полученные результаты.`;
+  } else {
+    shortHint = `Для перевода числа ${fromStr} из системы с основанием ${fromBase} в систему с основанием ${toBase}, сначала переведите его в десятичную систему счисления (разложив по степеням основания ${fromBase}), а затем полученное десятичное число переведите в целевую систему с основанием ${toBase}, последовательно деля его на ${toBase} с остатком.`;
+  }
+
+  const getDivisionDetails = (val: number, base: number): string => {
+    let steps: string[] = [];
+    let tempValue = val;
+    if (tempValue === 0) {
+      return `   • 0 : ${base} = 0 (остаток 0)`;
+    }
+    const hexDigits = '0123456789ABCDEF';
+    while (tempValue > 0) {
+      const quotient = Math.floor(tempValue / base);
+      const remainder = tempValue % base;
+      let remainderStr = remainder.toString();
+      if (base > 10 && remainder >= 10) {
+        remainderStr = `${remainder} (${hexDigits[remainder]})`;
+      }
+      steps.push(`   • ${tempValue} : ${base} = ${quotient} (остаток: ${remainderStr})`);
+      tempValue = quotient;
+    }
+    return steps.join('\n');
+  };
+
+  const toDecimalExplanation =
+    `   Пронумеруем разряды числа ${fromStr} справа налево (начиная с нуля):\n` +
+    `   Разряды (степени):  ${fromStr.split('').map((_, i) => fromStr.length - 1 - i).join('  ')}\n` +
+    `   Цифры числа:        ${fromStr.split('').join('  ')}\n` +
+    `   Запишем сумму произведений цифр числа на основание ${fromBase} в соответствующих степенях:\n` +
+    `   ${fromStr}_${fromBase} = ${fromStr.split('').reverse().map((char, index) => `${char} * ${fromBase}^${index}`).reverse().join(' + ')} = ${decimalValue}_10`;
+
+  const fromDecimalExplanation =
+    `   Для этого выполним последовательное деление ${decimalValue} на ${toBase} с остатком, пока не получим частное 0:\n` +
+    `${getDivisionDetails(decimalValue, toBase)}\n\n` +
+    `   Выписываем полученные остатки в обратном порядке (снизу вверх) и получаем искомое число: ${toStr}.`;
+
+  let hint = `ПОЛНЫЙ ПОШАГОВЫЙ РАЗБОР:\n\n`;
+  if (fromBase !== 10 && toBase === 10) {
+    hint += `Переведём число ${fromStr} из системы счисления с основанием ${fromBase} в систему счисления с основанием 10 (разложение по степеням):\n` +
+      toDecimalExplanation + `\n\n` +
+      `Правильный ответ: ${toStr}`;
+  } else if (fromBase === 10 && toBase !== 10) {
+    hint += `Переведём число ${decimalValue} из системы счисления с основанием 10 в систему счисления с основанием ${toBase} (последовательное деление на основание):\n` +
+      fromDecimalExplanation + `\n\n` +
+      `Правильный ответ: ${toStr}`;
+  } else {
+    hint += `Шаг 1. Перевод исходного числа ${fromStr} (основание ${fromBase}) в десятичную систему счисления (основание 10):\n` +
+      toDecimalExplanation + `\n\n` +
+      `Шаг 2. Перевод полученного десятичного числа ${decimalValue} в целевую систему счисления с основанием ${toBase}:\n` +
+      fromDecimalExplanation + `\n\n` +
+      `Правильный ответ: ${toStr}`;
+  }
+
+  return {
+    correctAnswer: toStr,
+    statement,
+    shortHint,
+    hint
+  };
+};
+
 export const task10: TaskModule = {
   id: 10,
   title: 'Системы счисления',
@@ -776,20 +860,15 @@ export const task10: TaskModule = {
         hint
       };
     } else if (difficulty === 2) {
-      const level2Types = [
-        generateCompareThreeNumbers,
-        generateSumOrCountOfDigits
-      ];
-      const selectedGenerator = rng ? rng.pick(level2Types) : level2Types[Math.floor(Math.random() * level2Types.length)];
-      return selectedGenerator(rng);
+      const sub = rng.int(0, 2);
+      if (sub === 0) return generateCompareThreeNumbers(rng);
+      if (sub === 1) return generateSumOrCountOfDigits(rng, 'sum');
+      return generateSumOrCountOfDigits(rng, 'count');
     } else {
-      const level3Types = [
-        generateMixedBaseExpression,
-        generateNonStandardBases,
-        generateFindBase
-      ];
-      const selectedGenerator = rng ? rng.pick(level3Types) : level3Types[Math.floor(Math.random() * level3Types.length)];
-      return selectedGenerator(rng);
+      const sub3 = rng.int(0, 2);
+      if (sub3 === 0) return generateMixedBaseExpression(rng);
+      if (sub3 === 1) return generateFindBase(rng);
+      return generateAnyToAnyTranslation(rng);
     }
   },
 
