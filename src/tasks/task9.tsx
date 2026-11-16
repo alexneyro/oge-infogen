@@ -1239,6 +1239,11 @@ export const task9: TaskModule = {
           disabled={state.isSubmitted}
           placeholder="Введите количество путей…"
           maxWidth="xs"
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Verification Result Feedback Overlay */}

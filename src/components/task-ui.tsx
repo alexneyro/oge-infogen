@@ -206,30 +206,48 @@ export interface AnswerFieldProps {
   className?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  onEnter?: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }
 
-export function AnswerField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  mono = false,
-  maxWidth = 'md',
-  className = '',
-  disabled = false,
-  autoFocus = false,
-}: AnswerFieldProps) {
+export const AnswerField = React.forwardRef<HTMLInputElement, AnswerFieldProps>(function AnswerField(
+  {
+    label,
+    value,
+    onChange,
+    placeholder,
+    mono = false,
+    maxWidth = 'md',
+    className = '',
+    disabled = false,
+    autoFocus = false,
+    onEnter,
+    onKeyDown,
+  },
+  ref
+) {
   const maxWClass =
     maxWidth === 'xs' ? 'max-w-xs' : maxWidth === 'sm' ? 'max-w-sm' : 'max-w-md';
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(e);
+    if (e.defaultPrevented || disabled) return;
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onEnter?.();
+    }
+  };
 
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="no-print">
         <label className="block text-sm font-semibold text-theme-text">{label}</label>
         <input
+          ref={ref}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
           autoFocus={autoFocus}
@@ -243,7 +261,7 @@ export function AnswerField({
       </div>
     </div>
   );
-}
+});
 
 export interface HintBoxProps {
   children: React.ReactNode;

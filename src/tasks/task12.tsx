@@ -547,6 +547,11 @@ const Task12View: React.FC<Task12ViewProps> = ({ taskData, state }) => {
         onChange={(val) => state.setUserAnswer(val)}
         disabled={state.isSubmitted}
         placeholder="Например: 14"
+        onEnter={() => {
+          if (!state.isSubmitted && !state.isCheckDisabled) {
+            state.onCheck?.();
+          }
+        }}
       />
 
       {state.isSubmitted && (

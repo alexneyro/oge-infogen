@@ -1136,6 +1136,11 @@ const Task6Renderer: React.FC<{ taskData: any; state: TaskModuleState }> = ({ ta
         onChange={(val) => state.setUserAnswer(val)}
         disabled={state.isSubmitted}
         placeholder="Введите число…"
+        onEnter={() => {
+          if (!state.isSubmitted && !state.isCheckDisabled) {
+            state.onCheck?.();
+          }
+        }}
       />
 
       {state.showHints && !state.isSubmitted && (

@@ -1286,6 +1286,11 @@ export const task2: TaskModule = {
               ? 'Например: LOVE'
               : 'Например: ВАЛЯ'
           }
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Short Hint */}

@@ -95,6 +95,12 @@ export default function App() {
     ? (getTaskById(taskInstance.taskId)?.check(taskInstance.taskData, userAnswer) ?? false)
     : undefined;
 
+  const isCheckDisabled = isSubmitted || (
+    taskInstance?.taskId === 16
+      ? !parseUserAnswer16(userAnswer).code.trim()
+      : !userAnswer.trim()
+  );
+
   // Ref for tracking the last counted stats verdict for current task instance
   const lastCountedRef = useRef<{ id: string; correct: boolean } | null>(null);
 
@@ -780,7 +786,9 @@ export default function App() {
                           setUserAnswer,
                           isSubmitted,
                           showHints,
-                          isCorrect: currentIsCorrect
+                          isCorrect: currentIsCorrect,
+                          onCheck: handleCheck,
+                          isCheckDisabled,
                         }
                       )}
                     </div>
@@ -824,13 +832,9 @@ export default function App() {
                             <button
                               onClick={handleCheck}
                               id="check-btn"
-                              disabled={
-                                taskInstance?.taskId === 16
-                                  ? !parseUserAnswer16(userAnswer).code.trim()
-                                  : !userAnswer.trim()
-                              }
+                              disabled={isCheckDisabled}
                               className={`py-2 px-5 text-xs font-bold rounded-xl transition-all ${
-                                (taskInstance?.taskId === 16 ? parseUserAnswer16(userAnswer).code.trim() : userAnswer.trim())
+                                !isCheckDisabled
                                   ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-md shadow-blue-200/50 dark:shadow-none cursor-pointer'
                                   : 'bg-theme-bg border border-theme-border text-theme-text-muted cursor-not-allowed'
                               }`}

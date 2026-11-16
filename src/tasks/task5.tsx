@@ -1135,6 +1135,11 @@ export const Task5Renderer: React.FC<{ taskData: Task5Data; state: TaskModuleSta
             ? 'Введите количество'
             : 'Номер команды'
         }
+        onEnter={() => {
+          if (!state.isSubmitted && !state.isCheckDisabled) {
+            state.onCheck?.();
+          }
+        }}
       />
 
       {/* Guiding Hint BEFORE submission */}

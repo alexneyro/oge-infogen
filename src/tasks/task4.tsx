@@ -631,6 +631,11 @@ export const task4: TaskModule = {
           mono
           maxWidth="xs"
           placeholder="Например: 12"
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Hint Box */}

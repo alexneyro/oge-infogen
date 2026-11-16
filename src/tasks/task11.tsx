@@ -1191,6 +1191,11 @@ const Task11View: React.FC<Task11ViewProps> = ({ taskData, state }) => {
         onChange={(val) => state.setUserAnswer(val)}
         disabled={state.isSubmitted}
         placeholder="Например: Очумелов или Гринев"
+        onEnter={() => {
+          if (!state.isSubmitted && !state.isCheckDisabled) {
+            state.onCheck?.();
+          }
+        }}
       />
 
       {state.isSubmitted && (

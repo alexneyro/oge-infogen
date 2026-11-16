@@ -683,6 +683,11 @@ export const task7: TaskModule = {
           placeholder={examplePlaceholder}
           mono={true}
           maxWidth="xs"
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Feedback Overlay */}

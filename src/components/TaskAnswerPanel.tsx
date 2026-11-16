@@ -219,6 +219,7 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
   const isAnswerEmpty = taskId === 16
     ? !parseUserAnswer16(userAnswer).code.trim()
     : !userAnswer.trim();
+  const isCheckDisabled = submitted || isChecking16 || isAnswerEmpty;
 
   return (
     <div
@@ -341,6 +342,7 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
                 isSubmitted: showSolution,
                 showHints: false,
                 isCorrect: result?.passed,
+                ...(mode === 'check' ? { onCheck: handleCheck, isCheckDisabled } : {}),
               })}
             </div>
           )}
@@ -353,9 +355,9 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
           !submitted ? (
             <button
               onClick={handleCheck}
-              disabled={isChecking16 || isAnswerEmpty}
+              disabled={isCheckDisabled}
               className={`px-4 py-2 text-xs font-bold rounded-xl shadow-sm flex items-center space-x-1.5 transition-all ${
-                isChecking16 || isAnswerEmpty
+                isCheckDisabled
                   ? 'bg-theme-bg border border-theme-border text-theme-text-muted cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white cursor-pointer'
               }`}

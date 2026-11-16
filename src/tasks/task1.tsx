@@ -723,6 +723,11 @@ export const task1: TaskModule = {
           onChange={(val) => state.setUserAnswer(val)}
           disabled={state.isSubmitted}
           placeholder={/^\d+$/.test(taskData.correctAnswer) ? "Введите число…" : "Введите слово…"}
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Verification Result Feedback Overlay */}

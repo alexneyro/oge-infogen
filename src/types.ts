@@ -30,6 +30,8 @@ export interface TaskModuleState {
   isSubmitted: boolean;
   showHints: boolean;
   isCorrect?: boolean;
+  onCheck?: () => void;
+  isCheckDisabled?: boolean;
 }
 
 export interface TaskModule {

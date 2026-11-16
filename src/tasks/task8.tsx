@@ -1179,6 +1179,11 @@ export const task8: TaskModule = {
           onChange={(val) => state.setUserAnswer(val)}
           disabled={state.isSubmitted}
           placeholder="Введите число…"
+          onEnter={() => {
+            if (!state.isSubmitted && !state.isCheckDisabled) {
+              state.onCheck?.();
+            }
+          }}
         />
 
         {/* Verification Result Feedback Overlay */}
