@@ -33,6 +33,8 @@ export interface TaskAnswerPanelProps {
   initialShowSolution?: boolean;
   initialResult?: PositionScore | null;
   onPanelStateChange?: (position: number, state: TaskPanelCheckState) => void;
+  hideReviewUntilFinish?: boolean;
+  isFinished?: boolean;
 }
 
 /**
@@ -67,7 +69,10 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
   initialShowSolution = false,
   initialResult = null,
   onPanelStateChange,
+  hideReviewUntilFinish = false,
+  isFinished = false,
 }) => {
+  const canShowReview = !hideReviewUntilFinish || isFinished;
   const [submitted, setSubmitted] = useState<boolean>(initialSubmitted);
   const [showSolution, setShowSolution] = useState<boolean>(initialShowSolution);
   const [result, setResult] = useState<PositionScore | null>(initialResult);
@@ -220,6 +225,8 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
     ? !parseUserAnswer16(userAnswer).code.trim()
     : !userAnswer.trim();
 
+  const isCheckButtonDisabled = mode !== 'check' || submitted || isChecking16 || isAnswerEmpty;
+
   return (
     <div
       id={`set-entry-${position}`}
@@ -297,9 +304,11 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
               {taskMod.render(taskData, {
                 userAnswer,
                 setUserAnswer: submitted ? () => {} : onAnswerChange,
-                isSubmitted: showSolution,
+                isSubmitted: canShowReview ? showSolution : false,
                 showHints: false,
                 isCorrect: result?.passed,
+                onCheck: mode === 'check' ? handleCheck : undefined,
+                isCheckDisabled: isCheckButtonDisabled,
               })}
             </div>
           ) : taskId === 16 ? (
@@ -328,9 +337,11 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
               {taskMod.render(taskData, {
                 userAnswer,
                 setUserAnswer: submitted ? () => {} : onAnswerChange,
-                isSubmitted: showSolution,
+                isSubmitted: canShowReview ? showSolution : false,
                 showHints: false,
                 isCorrect: result?.passed,
+                onCheck: mode === 'check' ? handleCheck : undefined,
+                isCheckDisabled: isCheckButtonDisabled,
               })}
             </div>
           ) : (
@@ -338,9 +349,11 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
               {taskMod.render(taskData, {
                 userAnswer,
                 setUserAnswer: submitted ? () => {} : onAnswerChange,
-                isSubmitted: showSolution,
+                isSubmitted: canShowReview ? showSolution : false,
                 showHints: false,
                 isCorrect: result?.passed,
+                onCheck: mode === 'check' ? handleCheck : undefined,
+                isCheckDisabled: isCheckButtonDisabled,
               })}
             </div>
           )}
@@ -372,7 +385,7 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
                 </>
               )}
             </button>
-          ) : (
+          ) : canShowReview ? (
             <button
               onClick={() => setShowSolution((prev) => !prev)}
               className="px-4 py-2 bg-theme-bg hover:bg-theme-border/50 text-theme-text border border-theme-border text-xs font-bold rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
@@ -380,7 +393,7 @@ export const TaskAnswerPanel: React.FC<TaskAnswerPanelProps> = ({
               <BookOpen className="h-3.5 w-3.5 text-blue-600" />
               <span>{showSolution ? 'Свернуть разбор' : 'Показать разбор'}</span>
             </button>
-          )
+          ) : null
         ) : (
           <button
             onClick={handleSave}

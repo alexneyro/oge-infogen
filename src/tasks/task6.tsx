@@ -149,25 +149,24 @@ export function formatCondition(model: ProgramModel, lang: Language): string {
   }
 }
 
-export function renderProgram(model: ProgramModel, lang: Language, hasA = false): string {
+export function renderProgram(model: ProgramModel, lang: Language): string {
   const cond = formatCondition(model, lang);
-  const effectiveHasA = hasA || model.clause1?.value === 'A' || model.clause2?.value === 'A';
 
   switch (lang) {
     case 'Python':
       return `s = int(input())
 t = int(input())
-${effectiveHasA ? 'A = int(input())\n' : ''}if ${cond}:
+if ${cond}:
     print("YES")
 else:
     print("NO")`;
 
     case 'Паскаль':
-      return `var ${effectiveHasA ? 's, t, A' : 's, t'}: integer;
+      return `var s, t: integer;
 begin
   readln(s);
   readln(t);
-${effectiveHasA ? '  readln(A);\n' : ''}  if ${cond} then
+  if ${cond} then
     writeln('YES')
   else
     writeln('NO')
@@ -176,9 +175,9 @@ end.`;
     case 'Алгоритмический':
       return `алг
 нач
-  цел ${effectiveHasA ? 's, t, A' : 's, t'}
+  цел s, t
   ввод s, t
-${effectiveHasA ? '  ввод A\n' : ''}  если ${cond} то
+  если ${cond} то
     вывод "YES"
   иначе
     вывод "NO"
@@ -186,10 +185,10 @@ ${effectiveHasA ? '  ввод A\n' : ''}  если ${cond} то
 кон`;
 
     case 'Бейсик':
-      return `DIM ${effectiveHasA ? 's, t, A' : 's, t'} AS INTEGER
+      return `DIM s, t AS INTEGER
 INPUT s
 INPUT t
-${effectiveHasA ? 'INPUT A\n' : ''}IF ${cond} THEN
+IF ${cond} THEN
   PRINT "YES"
 ELSE
   PRINT "NO"
@@ -200,8 +199,8 @@ ENDIF`;
 using namespace std;
 
 int main() {
-    int ${effectiveHasA ? 's, t, A' : 's, t'};
-    cin >> ${effectiveHasA ? 's >> t >> A' : 's >> t'};
+    int s, t;
+    cin >> s >> t;
     if ${cond}
         cout << "YES";
     else
@@ -1085,8 +1084,7 @@ print(result)`;
 const Task6Renderer: React.FC<{ taskData: any; state: TaskModuleState }> = ({ taskData, state }) => {
   const [selectedLang, setSelectedLang] = useState<Language>('Python');
 
-  const hasA = taskData.model?.clause1?.value === 'A' || taskData.model?.clause2?.value === 'A';
-  const codeText = renderProgram(taskData.model, selectedLang, hasA);
+  const codeText = renderProgram(taskData.model, selectedLang);
 
   return (
     <div className="space-y-4">
@@ -1134,6 +1132,10 @@ const Task6Renderer: React.FC<{ taskData: any; state: TaskModuleState }> = ({ ta
         label="Ваш ответ (число):"
         value={state.userAnswer}
         onChange={(val) => state.setUserAnswer(val)}
+        onEnter={() => {
+          if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+          state.onCheck();
+        }}
         disabled={state.isSubmitted}
         placeholder="Введите число…"
       />

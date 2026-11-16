@@ -1157,7 +1157,7 @@ export const task9: TaskModule = {
                     markerHeight="6"
                     orient="auto-start-reverse"
                   >
-                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5" />
+                    <path d="M 0 1 L 10 5 L 0 9 z" className="fill-indigo-600 dark:fill-indigo-400" />
                   </marker>
                 </defs>
 
@@ -1175,8 +1175,7 @@ export const task9: TaskModule = {
                         y1={rEdge.y1}
                         x2={rEdge.x2}
                         y2={rEdge.y2}
-                        stroke="#6366f1"
-                        strokeWidth={2}
+                        className="stroke-indigo-500 dark:stroke-indigo-400 stroke-2"
                         markerEnd="url(#task9-arrow)"
                       />
                     );
@@ -1186,9 +1185,7 @@ export const task9: TaskModule = {
                         key={rEdge.key}
                         d={`M ${rEdge.x1} ${rEdge.y1} Q ${rEdge.midX} ${rEdge.midY} ${rEdge.x2} ${rEdge.y2}`}
                         fill="none"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        opacity={0.85}
+                        className="stroke-indigo-500 dark:stroke-indigo-400 stroke-2 opacity-85"
                         markerEnd="url(#task9-arrow)"
                       />
                     );
@@ -1197,24 +1194,21 @@ export const task9: TaskModule = {
 
                 {/* Render nodes */}
                 {taskData.nodes.map((node) => {
+                  const circleClass = "fill-slate-50 dark:fill-slate-800 stroke-indigo-600 dark:stroke-indigo-400 stroke-2";
+
                   return (
                     <g key={`n-${node.id}`}>
                       <circle
                         cx={node.x}
                         cy={node.y}
                         r={18}
-                        className="fill-slate-50 dark:fill-slate-800 stroke-indigo-600 dark:stroke-indigo-400"
-                        fill="#f8fafc"
-                        stroke="#4f46e5"
-                        strokeWidth={2}
+                        className={circleClass}
                       />
                       <text
                         x={node.x}
                         y={node.y + 5}
                         textAnchor="middle"
                         className="font-extrabold text-sm fill-slate-900 dark:fill-slate-100 select-none"
-                        fontSize={13}
-                        fontWeight="bold"
                       >
                         {node.name}
                       </text>
@@ -1236,6 +1230,10 @@ export const task9: TaskModule = {
           label="Ваш ответ (число):"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           placeholder="Введите количество путей…"
           maxWidth="xs"

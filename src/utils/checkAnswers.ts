@@ -17,7 +17,6 @@ export interface CheckedRow {
   partialManual?: boolean; // Например, задание 14: авто 2 балла + 1 балл диаграмма вручную
   subAnswers?: { sub: number; raw: string; correct?: boolean }[];
   details?: string[];
-  task13Data?: unknown; // taskData задания 13 для отложенной проверки учителем
 }
 
 export interface CheckSetResult {
@@ -128,7 +127,7 @@ export function checkSet(
     const normCurrent = currentSetCode.trim().toUpperCase();
     if (normParsed !== normCurrent) {
       notes.push(
-        `Внимание: код набора в файле (${parsed.setCode}) не совпадает с кодом текущего набора (${currentSetCode}).`
+        `Внимание: код набора в файле (${parsed.setCode}) не совпадает с кодом текущего набора (${currentSetCode}). Проверка выполнена по структуре открытого набора.`
       );
     }
   } else if (!parsed.setCode) {
@@ -287,18 +286,16 @@ export function checkSet(
     // Задание 13: ручная проверка учителем (форматирование документа)
     if (entry.taskId === 13) {
       hasManualTasks = true;
-      const raw = (posAnswers[0]?.raw ?? '').trim().toLowerCase();
-      const isDone = raw === 'сделал';
+      const raw = posAnswers[0]?.raw ?? '';
       rows.push({
         position: entry.position,
         taskId: entry.taskId,
         difficulty: entry.difficulty,
-        raw: posAnswers[0]?.raw ?? '',
+        raw,
         expected: 'Проверяется учителем по файлу-решению',
-        status: isDone ? 'manual' : 'empty',
+        status: 'manual',
         score: 0,
         maxScore: itemMax,
-        task13Data: isDone ? entry.taskData : undefined,
       });
       continue;
     }

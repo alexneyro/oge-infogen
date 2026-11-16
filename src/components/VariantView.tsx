@@ -95,6 +95,7 @@ export interface VariantInfo {
 
 interface VariantViewProps {
   onVariantInfoChange?: (info: VariantInfo) => void;
+  onFinish?: (result: { score: number; maxScore: number; seed: string | null; timeSpentSeconds: number; answers: Record<string, unknown> }) => void;
 }
 
 interface PerTaskState {
@@ -170,9 +171,6 @@ function getDisplayUserAnswer(taskId: number, rawAnswer: string): string | null 
     if (parsed.total > 0) {
       return `тесты: ${parsed.passed}/${parsed.total}\n${trimmedCode}`;
     }
-    if (parsed.score >= 0) {
-      return `тесты: не запускались\n${trimmedCode}`;
-    }
     return trimmedCode;
   }
   const trimmed = (rawAnswer || '').trim();
@@ -246,7 +244,7 @@ export function loadSavedVariantState(): {
   return null;
 }
 
-export function VariantView({ onVariantInfoChange }: VariantViewProps) {
+export function VariantView({ onVariantInfoChange, onFinish }: VariantViewProps) {
   const savedVariant = useMemo(() => loadSavedVariantState(), []);
 
   // Configured difficulties for each of the 16 tasks (default L1 or from saved variant)
@@ -595,6 +593,38 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
       grade,
       difficulty: dominantDifficulty,
     });
+
+    if (onFinish) {
+      const answersMap: Record<string, unknown> = {};
+      variantTasks?.forEach((task, idx) => {
+        const ans = taskStates[idx]?.userAnswer ?? '';
+        const taskMod = getTaskById(task.taskId);
+        let score = 0;
+        let maxScore = (task as any).maxPoints ?? taskMod?.maxPoints ?? 1;
+        if (typeof (OGE_TASKS[idx] as any)?.checkScore === 'function') {
+          const result = (OGE_TASKS[idx] as any).checkScore(task.taskData, ans);
+          score = result.score;
+          maxScore = result.maxScore;
+        } else {
+          const isCorrect = taskMod ? taskMod.check(task.taskData, ans) : false;
+          score = isCorrect ? maxScore : 0;
+        }
+        answersMap[String(idx + 1)] = {
+          answer: ans,
+          correct: score > 0,
+          score,
+          maxScore,
+          taskId: task.taskId,
+        };
+      });
+      onFinish({
+        score: totalEarnedPoints,
+        maxScore: TOTAL_MAX_POINTS,
+        seed: currentCode,
+        timeSpentSeconds: EXAM_DURATION_SECONDS - timeRemaining,
+        answers: answersMap,
+      });
+    }
   };
 
   const toggleTaskExpand = (idx: number) => {
@@ -785,7 +815,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                 <span className="text-xs font-bold text-theme-text uppercase tracking-wider">
                   Вариант {encodeVariant(variantConfig)}
                 </span>
-                <span className="text-[10px] font-sans tabular-nums px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
                   16 заданий
                 </span>
                 {isSubmitted && (
@@ -796,7 +826,7 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
               </div>
 
               <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-                <div className="bg-theme-bg border border-theme-border font-sans tabular-nums text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs truncate">
+                <div className="bg-theme-bg border border-theme-border font-mono text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs truncate">
                   {currentCode}
                 </div>
 
@@ -1007,27 +1037,11 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                               {(() => {
                                 const displayUser = getDisplayUserAnswer(instance.taskId, st.userAnswer);
                                 if (displayUser === null) {
-                                  return <span className="text-theme-text-muted font-normal italic">нет ответа</span>;
-                                }
-                                if (instance.taskId === 16) {
-                                  const lines = displayUser.split('\n');
-                                  const hasTestPrefix = lines[0]?.startsWith('тесты:');
-                                  const testLine = hasTestPrefix ? lines[0] : 'тесты: не запускались';
-                                  const codeLines = hasTestPrefix ? lines.slice(1).join('\n') : displayUser;
                                   return (
-                                    <div className="space-y-1">
-                                      <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap">
-                                        {testLine}
-                                      </span>
-                                      {codeLines && (
-                                        <pre className="whitespace-pre-wrap break-words text-[11px] leading-snug font-mono max-w-[320px] max-h-[7.5rem] overflow-y-auto px-2 py-1 rounded bg-theme-bg border border-theme-border text-left text-theme-text">
-                                          {codeLines}
-                                        </pre>
-                                      )}
-                                    </div>
+                                    <span className="text-theme-text-muted font-normal italic">нет ответа</span>
                                   );
                                 }
-                                if ([13, 15].includes(instance.taskId)) {
+                                if ([13, 15, 16].includes(instance.taskId)) {
                                   return (
                                     <pre className="whitespace-pre-wrap break-words text-[11px] leading-snug font-mono max-w-[320px] max-h-[7.5rem] overflow-y-auto px-2 py-1 rounded bg-theme-bg border border-theme-border text-left">
                                       {displayUser}
