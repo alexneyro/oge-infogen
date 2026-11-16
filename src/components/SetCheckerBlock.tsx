@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Upload,
   FileText,
@@ -12,8 +12,15 @@ import {
   AlertTriangle,
   Play,
   Loader2,
+  ChevronDown,
+  Download,
 } from 'lucide-react';
-import { SetEntry } from '../set';
+import { parseTask13Answer, defaultEmptyPasted } from '../tasks/task13';
+import { checkTask13 } from '../tasks/task13/check';
+import { DEFAULT_SPEC } from '../tasks/task13/spec';
+import { parsePastedHtml } from '../tasks/task13/html';
+import { Task14PieChart } from '../tasks/task14';
+import { buildSet, decodeSetShort, SetEntry } from '../set';
 import { getTaskById } from '../tasks';
 import { DIFFICULTY_LABELS } from '../types';
 import { parseAnswersText, ParseResult } from '../utils/parseAnswers';
@@ -38,6 +45,19 @@ interface StudentSubmission {
   attachedProgramFiles?: Record<number, string>;
 }
 
+const CHECKER_STORAGE_KEY = 'oge-checker-state-v1';
+
+function loadCheckerState(): { submissions: StudentSubmission[]; activeSubId: string | null } | null {
+  try {
+    if (typeof sessionStorage === 'undefined') return null;
+    const raw = sessionStorage.getItem(CHECKER_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data && Array.isArray(data.submissions)) return data;
+    return null;
+  } catch { return null; }
+}
+
 const GRADE_LABELS: Record<number, string> = {
   2: '«2» (Неудовлетворительно)',
   3: '«3» (Удовлетворительно)',
@@ -45,14 +65,85 @@ const GRADE_LABELS: Record<number, string> = {
   5: '«5» (Отлично)',
 };
 
+function resolveEntries(
+  parsed: ParseResult,
+  currentSetCode: string,
+  currentEntries: SetEntry[]
+): { entries: SetEntry[]; resolvedCode: string; fromNotepad: boolean } {
+  const noteCode = parsed.setCode?.trim().toUpperCase();
+  const openCode = currentSetCode?.trim().toUpperCase();
+  if (noteCode && noteCode !== openCode) {
+    try {
+      const decoded = decodeSetShort(parsed.setCode.trim());
+      if (decoded) {
+        const result = buildSet(decoded);
+        if (result.entries.length > 0) {
+          return { entries: result.entries, resolvedCode: parsed.setCode.trim(), fromNotepad: true };
+        }
+      }
+    } catch {
+      // fallback to current
+    }
+  }
+  return { entries: currentEntries, resolvedCode: currentSetCode, fromNotepad: false };
+}
+
 export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetCheckerBlockProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [pastedText, setPastedText] = useState<string>('');
-  const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
-  const [activeSubId, setActiveSubId] = useState<string | null>(null);
+  const saved = React.useMemo(() => loadCheckerState(), []);
+  const [submissions, setSubmissions] = useState<StudentSubmission[]>(saved?.submissions ?? []);
+  const [activeSubId, setActiveSubId] = useState<string | null>(saved?.activeSubId ?? null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof sessionStorage === 'undefined') return;
+      sessionStorage.setItem(CHECKER_STORAGE_KEY, JSON.stringify({ submissions, activeSubId }));
+    } catch { /* ignore */ }
+  }, [submissions, activeSubId]);
 
   const activeSubmission = submissions.find((s) => s.id === activeSubId) || submissions[0] || null;
+
+  const handleExportExcel = async () => {
+    const { utils, writeFile } = await import('xlsx');
+
+    // Собираем все уникальные позиции из всех работ, сортируем
+    const allPositions = Array.from(
+      new Set(submissions.flatMap((s) => s.rows.map((r) => r.position)))
+    ).sort((a, b) => a - b);
+
+    // Заголовки
+    const header = [
+      'Фамилия и имя',
+      'Класс',
+      'Балл',
+      'Оценка',
+      ...allPositions.map((p) => `Зад. ${p}`),
+    ];
+
+    // Строки
+    const rows = submissions.map((sub) => {
+      const total = sub.rows.reduce((sum, r) => sum + r.score, 0);
+      const max = sub.rows.reduce((sum, r) => sum + r.maxScore, 0);
+      const grade = gradeFromScore(total, max);
+      const scoreByPos: Record<number, number> = {};
+      sub.rows.forEach((r) => { scoreByPos[r.position] = r.score; });
+      return [
+        sub.parsed.student || sub.fileName,
+        sub.parsed.grade || '—',
+        total,
+        grade,
+        ...allPositions.map((p) => scoreByPos[p] ?? '—'),
+      ];
+    });
+
+    const ws = utils.aoa_to_sheet([header, ...rows]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, 'Результаты');
+    writeFile(wb, `результаты_${fileCodeLabel || currentSetCode || 'набор'}.xlsx`);
+  };
 
   // Обработка загрузки одного или нескольких файлов (.txt, .py)
   const handleFileUpload = async (files: FileList | null) => {
@@ -146,7 +237,11 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
       const parsed = parseAnswersText(text);
       const attachedProgramFiles = notepadFilesMap[i] || {};
 
-      const checkResult = checkSet(entries, parsed, currentSetCode, attachedProgramFiles);
+      const { entries: resolvedEntries, resolvedCode, fromNotepad } = resolveEntries(parsed, currentSetCode, entries);
+      const checkResult = checkSet(resolvedEntries, parsed, resolvedCode, attachedProgramFiles);
+      if (fromNotepad) {
+        checkResult.notes.unshift(`Проверка выполнена по коду набора из блокнота (${parsed.setCode}).`);
+      }
 
       // Если есть непривязанные файлы при нескольких блокнотах — добавляем предупреждение
       if (unmatchedAuxFiles.length > 0) {
@@ -187,7 +282,11 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     if (!pastedText.trim()) return;
 
     const parsed = parseAnswersText(pastedText);
-    const checkResult = checkSet(entries, parsed, currentSetCode);
+    const { entries: resolvedEntries, resolvedCode, fromNotepad } = resolveEntries(parsed, currentSetCode, entries);
+    const checkResult = checkSet(resolvedEntries, parsed, resolvedCode);
+    if (fromNotepad) {
+      checkResult.notes.unshift(`Проверка выполнена по коду набора из блокнота (${parsed.setCode}).`);
+    }
 
     const sub: StudentSubmission = {
       id: `manual-paste-${Date.now()}`,
@@ -202,7 +301,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     setActiveSubId(sub.id);
   };
 
-  const hasTask16 = entries.some((e) => e.taskId === 16);
+  const hasTask16 = activeSubmission?.rows.some((r) => r.taskId === 16) ?? entries.some((e) => e.taskId === 16);
   const [isRunningPrograms, setIsRunningPrograms] = useState<boolean>(false);
   const [programsProgress, setProgramsProgress] = useState<{ done: number; total: number } | null>(
     null
@@ -211,13 +310,14 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
   // Прогон программ для текущей активной работы
   const handleRunProgramsForActive = async () => {
     if (!activeSubmission || isRunningPrograms || !hasTask16) return;
-    const task16Count = entries.filter((e) => e.taskId === 16).length;
+    const task16Count = activeSubmission?.rows.filter((r) => r.taskId === 16).length ?? entries.filter((e) => e.taskId === 16).length;
     setIsRunningPrograms(true);
     setProgramsProgress({ done: 0, total: task16Count });
 
     try {
+      const activeEntries = resolveEntries(activeSubmission.parsed, currentSetCode, entries).entries;
       const resultMap = await runProgramsForSet(
-        entries,
+        activeEntries,
         activeSubmission.parsed,
         (done, total) => setProgramsProgress({ done, total }),
         activeSubmission.attachedProgramFiles
@@ -268,8 +368,12 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     try {
       for (let sIdx = 0; sIdx < submissions.length; sIdx++) {
         const sub = submissions[sIdx];
+        const task16Count = sub.rows.filter((r) => r.taskId === 16).length ?? entries.filter((e) => e.taskId === 16).length;
+        setProgramsProgress({ done: 0, total: task16Count });
+
+        const subEntries = resolveEntries(sub.parsed, currentSetCode, entries).entries;
         const resultMap = await runProgramsForSet(
-          entries,
+          subEntries,
           sub.parsed,
           (done, total) => setProgramsProgress({ done, total }),
           sub.attachedProgramFiles
@@ -402,6 +506,38 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     return { min3, min4, min5 };
   }, [activeMaxScore]);
 
+  const [task13Inputs, setTask13Inputs] = React.useState<Record<string, string>>({});
+  const [task13Parsed, setTask13Parsed] = React.useState<Record<string, any>>({});
+  const [task13Reports, setTask13Reports] = React.useState<Record<string, { score: number; items: { id: string; label: string; status: string; expected: string; actual: string }[] }>>({});
+  const [task13Open, setTask13Open] = React.useState<Record<string, boolean>>({});
+  const [task14Open, setTask14Open] = React.useState<Record<string, boolean>>({});
+
+  const handleCheck13 = (rowKey: string, taskData: unknown, html: string) => {
+    try {
+      const parsed = task13Parsed[rowKey] || parsePastedHtml(html);
+      const report = checkTask13(
+        (taskData as any).doc,
+        parsed,
+        (taskData as any).doc?.spec || DEFAULT_SPEC
+      );
+      setTask13Reports(prev => ({
+        ...prev,
+        [rowKey]: { score: report.score, items: report.items }
+      }));
+      const targetPos = parseInt(rowKey.slice(rowKey.lastIndexOf('-') + 1), 10) || parseInt(rowKey.split('-')[1]);
+      setSubmissions(prev => prev.map(sub => ({
+        ...sub,
+        rows: sub.rows.map(r =>
+          (r.position === targetPos || r.position === parseInt(rowKey.split('-')[1])) && r.taskId === 13
+            ? { ...r, score: report.score, status: report.score > 0 ? 'correct' : 'wrong' }
+            : r
+        )
+      })));
+    } catch (e) {
+      console.error('task13 check error', e);
+    }
+  };
+
   return (
     <div className="bg-theme-card border border-theme-border rounded-2xl p-6 shadow-sm space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-theme-border pb-4">
@@ -446,7 +582,17 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
 
       {/* Форма ввода (Загрузка или Текст) */}
       {activeTab === 'upload' ? (
-        <div className="border-2 border-dashed border-theme-border hover:border-blue-500 rounded-2xl p-6 text-center transition-colors bg-theme-bg/50">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFileUpload(files);
+          }}
+          className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors bg-theme-bg/50 ${isDragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-theme-border hover:border-blue-500'}`}
+        >
           <input
             type="file"
             id="answers-file-input"
@@ -504,17 +650,27 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                 <span className="text-xs font-bold text-theme-text uppercase tracking-wider">
                   Работы ({submissions.length})
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSubmissions([]);
-                    setActiveSubId(null);
-                  }}
-                  className="text-[11px] text-rose-600 hover:underline flex items-center space-x-1"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Очистить все</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmissions([]);
+                      setActiveSubId(null);
+                    }}
+                    className="text-[11px] text-rose-600 hover:underline flex items-center space-x-1 cursor-pointer"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Очистить все</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="text-[11px] text-emerald-600 hover:underline flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span>Скачать Excel</span>
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
@@ -724,7 +880,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                         <th className="py-2.5 px-3 w-12 text-center">Поз.</th>
                         <th className="py-2.5 px-3">Задание</th>
                         <th className="py-2.5 px-3">Ответ ученика</th>
-                        <th className="py-2.5 px-3">Эталонный ответ</th>
+                        <th className="py-2.5 px-3">Правильный ответ</th>
                         <th className="py-2.5 px-3 w-28 text-center">Статус</th>
                         <th className="py-2.5 px-3 w-32 text-center">Балл</th>
                       </tr>
@@ -746,7 +902,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                         }
 
                         return (
-                          <tr key={`row-${row.position}`} className={`transition-colors ${rowBg}`}>
+                          <React.Fragment key={`row-group-${row.position}`}>
+                            <tr key={`row-${row.position}`} className={`transition-colors ${rowBg}`}>
                             {/* Позиция */}
                             <td className="py-2.5 px-3 text-center font-bold font-mono text-theme-text">
                               {row.position}
@@ -773,7 +930,9 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
 
                             {/* Эталон */}
                             <td className="py-2.5 px-3 font-mono text-theme-text-muted">
-                              {row.expected}
+                              {row.taskId === 16 && row.status === 'manual'
+                                ? 'Запустите проверку программ'
+                                : row.expected}
                             </td>
 
                             {/* Статус */}
@@ -895,6 +1054,140 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                               </div>
                             </td>
                           </tr>
+                          {row.taskId === 13 && (row.status === 'manual' || Boolean(row.task13Data)) && (() => {
+                            const rowKey = `${activeSubmission.id}-${row.position}`;
+                            const report = task13Reports[rowKey];
+                            return (
+                              <tr key={`task13-check-${row.position}`} className="bg-amber-50/30 dark:bg-amber-950/10">
+                                <td colSpan={6} className="px-4 py-3">
+                                  <div className="space-y-2">
+                                    <div className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center space-x-1.5">
+                                      <AlertCircle className="h-3.5 w-3.5" />
+                                      <span>Ученик отметил задание как выполненное — вставьте текст документа для проверки</span>
+                                    </div>
+                                    {!report && (
+                                      <div
+                                        tabIndex={0}
+                                        onPaste={(e) => {
+                                          e.preventDefault();
+                                          const html = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+                                          if (!html) return;
+                                          try {
+                                            const parsed = parsePastedHtml(html);
+                                            setTask13Inputs(prev => ({ ...prev, [rowKey]: html }));
+                                            setTask13Parsed(prev => ({ ...prev, [rowKey]: parsed }));
+                                          } catch {
+                                            setTask13Inputs(prev => ({ ...prev, [rowKey]: html }));
+                                          }
+                                        }}
+                                        className={`p-4 border-2 border-dashed rounded-xl transition-colors focus:outline-none min-h-[120px] text-xs ${
+                                          task13Parsed[rowKey]
+                                            ? 'border-emerald-500/50 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100'
+                                            : 'border-amber-400 dark:border-amber-600 bg-white dark:bg-slate-900 hover:border-emerald-500/50 focus:border-emerald-500'
+                                        }`}
+                                      >
+                                        {task13Parsed[rowKey] ? (
+                                          <div>
+                                            <div className="flex justify-between items-center mb-2">
+                                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">✓ Документ вставлен</span>
+                                              <button
+                                                onClick={() => {
+                                                  setTask13Inputs(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                                  setTask13Parsed(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                                }}
+                                                className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                                              >
+                                                Очистить
+                                              </button>
+                                            </div>
+                                            <div className="font-serif space-y-1">
+                                              {task13Parsed[rowKey].paragraphs?.map((para: any, pIdx: number) => (
+                                                <p key={pIdx} style={{ fontSize: `${task13Parsed[rowKey].fontSizes?.[pIdx] || 12}pt` }}>
+                                                  {para.spans?.map((s: any, sIdx: number) => (
+                                                    <span key={sIdx} style={{
+                                                      fontWeight: s.b ? 'bold' : undefined,
+                                                      fontStyle: s.i ? 'italic' : undefined,
+                                                      textDecoration: s.u ? 'underline' : undefined,
+                                                    }}>{s.text}</span>
+                                                  ))}
+                                                </p>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="flex flex-col items-center justify-center h-20 text-center text-slate-500">
+                                            <span className="font-medium">Нажмите сюда и вставьте (Ctrl+V) документ из редактора</span>
+                                            <span className="text-[11px] text-slate-400 mt-1">(MS Word, LibreOffice, Google Docs и др.)</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {task13Inputs[rowKey] && !report && (
+                                      <button
+                                        onClick={() => handleCheck13(rowKey, row.task13Data, task13Inputs[rowKey])}
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer"
+                                      >
+                                        Проверить
+                                      </button>
+                                    )}
+                                    {report && (
+                                      <div className="space-y-1.5">
+                                        <div className="text-xs font-bold text-theme-text">
+                                          Результат: {report.score}/2 балла
+                                        </div>
+                                        <button
+                                          onClick={() => setTask13Open(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
+                                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1"
+                                        >
+                                          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${task13Open[rowKey] ? 'rotate-180' : ''}`} />
+                                          <span>{task13Open[rowKey] ? 'Скрыть разбор' : 'Показать разбор'}</span>
+                                        </button>
+                                        {task13Open[rowKey] && (
+                                          <div className="space-y-1 pl-2 border-l-2 border-theme-border">
+                                            {report.items.map((item: any) => (
+                                              <div key={item.id} className={`text-[11px] flex items-start space-x-1.5 ${
+                                                item.status === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
+                                              }`}>
+                                                <span>{item.status === 'ok' ? '✓' : '✗'}</span>
+                                                <span>{item.label}: {item.status !== 'ok' ? `${item.actual} (нужно: ${item.expected})` : item.expected}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                          {row.taskId === 14 && row.partialManual && (() => {
+                            const rowKey14 = `task14-${row.position}`;
+                            const entry = entries.find((e) => e.position === row.position) || resolveEntries(activeSubmission.parsed, currentSetCode, entries).entries.find((e) => e.position === row.position);
+                            const chartData = entry?.taskData?.chartData;
+                            if (!chartData || chartData.length === 0) return null;
+                            return (
+                              <tr key={`task14-diagram-${row.position}`} className="bg-blue-50/30 dark:bg-blue-950/10">
+                                <td colSpan={6} className="px-4 py-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTask14Open((prev) => ({ ...prev, [rowKey14]: !prev[rowKey14] }))}
+                                    className="flex items-center space-x-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 hover:underline cursor-pointer"
+                                  >
+                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${task14Open[rowKey14] ? 'rotate-180' : ''}`} />
+                                    <span>{task14Open[rowKey14] ? 'Скрыть диаграмму' : 'Показать примерную диаграмму'}</span>
+                                  </button>
+                                  {task14Open[rowKey14] && (
+                                    <div className="mt-3 max-w-sm">
+                                      <p className="text-[11px] text-theme-text-muted mb-2">Сравните с работой ученика и выставьте балл вручную в поле выше.</p>
+                                      <Task14PieChart chartData={chartData} />
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                        </React.Fragment>
                         );
                       })}
                     </tbody>

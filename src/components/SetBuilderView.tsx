@@ -14,8 +14,6 @@ import {
   SlidersHorizontal,
   Shuffle,
   RotateCcw,
-  Lock,
-  X,
 } from 'lucide-react';
 import { getTaskById } from '../tasks';
 import { Difficulty } from '../types';
@@ -52,18 +50,6 @@ export interface SetInfo {
 
 export interface SetBuilderViewProps {
   onSetInfoChange?: (info: SetInfo) => void;
-  onFinish?: (result: { score: number; maxScore: number; seed: string | null; timeSpentSeconds: number; answers: Record<string, unknown> }) => void;
-  onAnswerChange?: (answers: Record<string, string>, elapsedSeconds: number) => void;
-  onCreateAssignment?: (params: { title: string; seed: string; setConfig: Record<string, unknown> }) => void;
-  assignmentCode?: string;       // код набора из ДЗ
-  assignmentTitle?: string;      // название ДЗ
-  hideReviewUntilFinish?: boolean; // скрывать разборы до завершения
-  isTeacher?: boolean;
-  onRequestAuth?: () => void;
-  initialAnswers?: Record<number, string>;
-  initialElapsed?: number;
-  onInitialAnswersApplied?: () => void;
-  onElapsedChange?: (elapsed: number) => void;
 }
 import { PrintDocument } from './PrintDocument';
 import { printDocument } from '../utils/print';
@@ -316,33 +302,8 @@ export function SlotStepper({
   );
 }
 
-export function SetBuilderView({
-  onSetInfoChange,
-  onFinish,
-  onAnswerChange,
-  onCreateAssignment,
-  assignmentCode,
-  assignmentTitle,
-  hideReviewUntilFinish,
-  isTeacher = true,
-  onRequestAuth,
-  initialAnswers,
-  initialElapsed,
-  onInitialAnswersApplied,
-  onElapsedChange,
-}: SetBuilderViewProps = {}) {
-  const isAssignmentMode = Boolean(assignmentCode);
+export function SetBuilderView({ onSetInfoChange }: SetBuilderViewProps = {}) {
   const savedState = useMemo(() => loadSavedSetState(), []);
-  const initialAnswersAppliedRef = useRef(false);
-  const initialElapsedAppliedRef = useRef(false);
-  const initialAnswersRef = useRef(initialAnswers);
-  useEffect(() => { initialAnswersRef.current = initialAnswers; }, [initialAnswers]);
-  const initialElapsedRef = useRef(initialElapsed);
-  useEffect(() => { initialElapsedRef.current = initialElapsed; }, [initialElapsed]);
-  const onInitialAnswersAppliedRef = useRef(onInitialAnswersApplied);
-  useEffect(() => { onInitialAnswersAppliedRef.current = onInitialAnswersApplied; }, [onInitialAnswersApplied]);
-  const onElapsedChangeRef = useRef(onElapsedChange);
-  useEffect(() => { onElapsedChangeRef.current = onElapsedChange; }, [onElapsedChange]);
 
   // Configuration state
   const [title, setTitle] = useState<string>(() => {
@@ -371,6 +332,9 @@ export function SetBuilderView({
   const [replacements, setReplacements] = useState<Record<number, number>>(
     () => savedState?.replacements ?? {}
   );
+  const [builtReplacements, setBuiltReplacements] = useState<Record<number, number>>(
+    () => savedState?.replacements ?? {}
+  );
   const [activePosition, setActivePosition] = useState<number | null>(null);
 
   // Stopwatch & Completion state
@@ -378,51 +342,10 @@ export function SetBuilderView({
   const [isPaused, setIsPaused] = useState<boolean>(() => savedState?.isPaused ?? false);
   const [isFinished, setIsFinished] = useState<boolean>(() => savedState?.isFinished ?? false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [showFeaturesModal, setShowFeaturesModal] = useState<boolean>(false);
   const [buildNonce, setBuildNonce] = useState<number>(0);
-
-  useEffect(() => {
-    const answers = initialAnswersRef.current;
-    const elapsed = initialElapsedRef.current;
-
-    // Восстановить таймер всегда если есть сохранённое время
-    if (elapsed !== undefined && elapsed > 0) {
-      setElapsedSeconds(elapsed);
-      initialElapsedAppliedRef.current = true;
-    } else {
-      initialElapsedAppliedRef.current = true;
-    }
-
-    // Восстановить ответы только если не применялись ранее
-    if (!initialAnswersAppliedRef.current && answers && Object.keys(answers).length > 0) {
-      setUserAnswers(answers);
-      initialAnswersAppliedRef.current = true;
-      onInitialAnswersAppliedRef.current?.();
-    }
-  }, [buildNonce]);
 
   // User input answers inside the preview (position -> answer)
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>(() => savedState?.userAnswers ?? {});
-
-  const elapsedSecondsRef = useRef(elapsedSeconds);
-  useEffect(() => {
-    elapsedSecondsRef.current = elapsedSeconds;
-  }, [elapsedSeconds]);
-
-  const onAnswerChangeRef = useRef(onAnswerChange);
-  useEffect(() => {
-    onAnswerChangeRef.current = onAnswerChange;
-  }, [onAnswerChange]);
-
-  useEffect(() => {
-    if (onAnswerChangeRef.current) {
-      const stringAnswers: Record<string, string> = {};
-      for (const [k, v] of Object.entries(userAnswers)) {
-        stringAnswers[String(k)] = v;
-      }
-      onAnswerChangeRef.current(stringAnswers, elapsedSecondsRef.current);
-    }
-  }, [userAnswers]);
 
   // Panel check & solution states (position -> { submitted, showSolution, result })
   const [panelStates, setPanelStates] = useState<Record<number, TaskPanelCheckState>>(
@@ -467,26 +390,14 @@ export function SetBuilderView({
 
   // Stopwatch interval: +1s per tick when hasBuilt && !isFinished && !isPaused
   useEffect(() => {
-    if (!hasBuilt || isFinished || isPaused || !initialElapsedAppliedRef.current) return;
+    if (!hasBuilt || isFinished || isPaused) return;
 
     const intervalId = setInterval(() => {
-      setElapsedSeconds((prev) => {
-        const next = prev + 1;
-        onElapsedChangeRef.current?.(next);
-        return next;
-      });
+      setElapsedSeconds((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [hasBuilt, isFinished, isPaused, buildNonce]);
-
-  useEffect(() => {
-    if (!hasBuilt || isFinished || isPaused) return;
-    const id = setInterval(() => {
-      onElapsedChange?.(elapsedSecondsRef.current);
-    }, 30000);
-    return () => clearInterval(id);
-  }, [hasBuilt, isFinished, isPaused, onElapsedChange]);
+  }, [hasBuilt, isFinished, isPaused]);
 
   // ZIP Export options
   const [includeNotepad, setIncludeNotepad] = useState<boolean>(true);
@@ -498,11 +409,21 @@ export function SetBuilderView({
     if (!hasBuilt) return false;
     if (title.trim() !== builtTitle) return true;
     if (!builtSlots) return true;
-    return slots.some((s, i) => {
+    const slotsChanged = slots.some((s, i) => {
       const b = builtSlots[i];
       return !b || s.taskId !== b.taskId || s.n1 !== b.n1 || s.n2 !== b.n2 || s.n3 !== b.n3 || s.nR !== b.nR;
     });
-  }, [hasBuilt, title, builtTitle, slots, builtSlots]);
+    if (slotsChanged) return true;
+
+    const builtReplKeys = Object.keys(builtReplacements ?? {}).sort().join(',');
+    const currReplKeys = Object.keys(replacements).sort().join(',');
+    if (builtReplKeys !== currReplKeys) return true;
+    const builtReplVals = Object.values(builtReplacements ?? {}).sort().join(',');
+    const currReplVals = Object.values(replacements).sort().join(',');
+    if (builtReplVals !== currReplVals) return true;
+
+    return false;
+  }, [hasBuilt, title, builtTitle, slots, builtSlots, builtReplacements, replacements]);
 
   // Current config object
   const currentConfig: SetConfig = useMemo(
@@ -701,16 +622,11 @@ export function SetBuilderView({
   const resetSessionProgress = () => {
     setActivePosition(null);
     setUserAnswers({});
-    setElapsedSeconds(0);
     setPanelStates({});
+    setElapsedSeconds(0);
     setIsPaused(false);
     setIsFinished(false);
     setShowConfirmModal(false);
-    initialAnswersAppliedRef.current = false;
-    initialElapsedAppliedRef.current = false;
-    if (!initialAnswersRef.current || Object.keys(initialAnswersRef.current).length === 0) {
-      initialElapsedAppliedRef.current = true;
-    }
     setBuildNonce((prev) => prev + 1);
   };
 
@@ -759,14 +675,15 @@ export function SetBuilderView({
     setBuiltTitle(rawTitle);
     setHasBuilt(true);
     setReplacements({});
+    setBuiltReplacements({});
     setInputCode('');
     setSeedFromLoadedCode('');
     resetSessionProgress();
   };
 
   // Load from code (accepts short code)
-  const handleLoadFromCode = (explicitCode?: string | React.MouseEvent) => {
-    const raw = (typeof explicitCode === 'string' ? explicitCode : inputCode).trim();
+  const handleLoadFromCode = () => {
+    const raw = inputCode.trim();
     if (!raw) {
       setCodeError('Введите код набора для загрузки');
       return;
@@ -799,15 +716,14 @@ export function SetBuilderView({
     }
 
     setSeedFromLoadedCode(decoded.seed);
-    const targetTitle = assignmentTitle || decoded.title?.trim() || effectiveTitle;
-    if (assignmentTitle || decoded.title) {
-      setTitle(assignmentTitle || decoded.title || '');
-    }
+    const targetTitle = decoded.title?.trim() || effectiveTitle;
+    setTitle(targetTitle);
     const normalizedSlots = normalizeSlots(decoded.slots);
     setSlots(normalizedSlots);
 
     const decodedReplacements = decoded.replacements || {};
     setReplacements(decodedReplacements);
+    setBuiltReplacements(decodedReplacements);
 
     const result = buildSet({
       seed: decoded.seed,
@@ -829,32 +745,6 @@ export function SetBuilderView({
     resetSessionProgress();
   };
 
-  useEffect(() => {
-    if (assignmentCode && !isFinished) {
-      setInputCode(assignmentCode);
-      const timer = setTimeout(() => {
-        handleLoadFromCode(assignmentCode);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [assignmentCode]);
-
-  useEffect(() => {
-    const handleLoadSetCode = (e: Event) => {
-      const code = (e as CustomEvent).detail?.code;
-      if (code) {
-        setInputCode(code);
-        setSeedFromLoadedCode(code);
-        setTimeout(() => {
-          handleLoadFromCode(code);
-          localStorage.removeItem('pendingSetCode');
-        }, 100);
-      }
-    };
-    window.addEventListener('loadSetCode', handleLoadSetCode);
-    return () => window.removeEventListener('loadSetCode', handleLoadSetCode);
-  }, []);
-
   // Replace a task at a specific position with a newly generated seed
   const handleReplaceTask = (position: number) => {
     if (isFinished || !hasBuilt) return;
@@ -872,6 +762,7 @@ export function SetBuilderView({
       [position]: newSubSeed,
     };
     setReplacements(nextReplacements);
+    setBuiltReplacements(nextReplacements);
 
     const targetConfig: SetConfig = {
       seed: builtSeed,
@@ -889,7 +780,6 @@ export function SetBuilderView({
 
     const result = buildSet(targetConfig);
     setBuiltEntries(result.entries);
-    setTimeout(() => firstTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
     setBuiltCode(newCode);
 
     setUserAnswers((prev) => {
@@ -990,32 +880,6 @@ export function SetBuilderView({
     setPanelStates(newPanelStates);
     setIsFinished(true);
     setShowConfirmModal(false);
-
-    if (onFinish) {
-      const answersMap: Record<string, unknown> = {};
-      let totalScore = 0;
-      let totalMax = 0;
-      for (const entry of builtEntries) {
-        const ans = userAnswers[entry.position] || '';
-        const scoreResult = scorePosition(entry.taskId, entry.taskData, ans);
-        answersMap[String(entry.position)] = {
-          answer: ans,
-          correct: scoreResult.score > 0,
-          score: scoreResult.score,
-          maxScore: scoreResult.maxScore,
-          taskId: entry.taskId,
-        };
-        totalScore += scoreResult.score;
-        totalMax += scoreResult.maxScore;
-      }
-      onFinish({
-        score: totalScore,
-        maxScore: totalMax,
-        seed: builtCode || null,
-        timeSpentSeconds: elapsedSeconds,
-        answers: answersMap,
-      });
-    }
   };
 
   const handleFinishClick = () => {
@@ -1038,7 +902,6 @@ export function SetBuilderView({
         const result = buildSet(currentConfig);
         entriesToExport = result.entries;
         setBuiltEntries(result.entries);
-        setTimeout(() => firstTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
         setBuiltCode(currentShortCode);
       }
       const { blob, missing } = await buildSetZipBlob(entriesToExport, currentConfig, {
@@ -1108,32 +971,8 @@ export function SetBuilderView({
   return (
     <div>
       <div className="space-y-8 animate-in fade-in duration-300 no-print">
-        {!isAssignmentMode && !isTeacher && (
-          <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
-              <Lock className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
-                Создание наборов доступно учителям
-              </p>
-              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">
-                Войдите в аккаунт учителя, чтобы создавать наборы заданий и выдавать их ученикам
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onRequestAuth}
-              className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer"
-            >
-              Войти
-            </button>
-          </div>
-        )}
-
         {/* BUILDER CONFIGURATION PANEL */}
-        {!isAssignmentMode && (
-          <div className="bg-theme-card border border-theme-border rounded-2xl p-6 shadow-sm space-y-6">
+      <div className="bg-theme-card border border-theme-border rounded-2xl p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-theme-border pb-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
@@ -1660,18 +1499,16 @@ export function SetBuilderView({
             {/* Build Button */}
             <div className="flex flex-col items-end gap-1">
               <button
-                onClick={!isTeacher ? () => setShowFeaturesModal(true) : handleBuild}
-                disabled={isTeacher && (totalCount === 0 || totalCount > 640)}
+                onClick={handleBuild}
+                disabled={totalCount === 0 || totalCount > 640}
                 className={`px-6 py-2.5 text-white text-xs font-bold rounded-xl shadow-md flex items-center space-x-2 transition-all ${
-                  isTeacher && (totalCount === 0 || totalCount > 640)
+                  totalCount === 0 || totalCount > 640
                     ? 'bg-gray-400 dark:bg-gray-600 opacity-50 cursor-not-allowed shadow-none'
-                    : isTeacher
-                    ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 cursor-pointer'
-                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20 cursor-pointer'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20 cursor-pointer'
                 }`}
               >
                 <Sparkles className="h-4 w-4" />
-                <span>{isTeacher ? 'Собрать набор' : 'Войти и собрать'}</span>
+                <span>Собрать набор</span>
               </button>
               {totalCount > 640 && (
                 <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium whitespace-nowrap">
@@ -1682,10 +1519,9 @@ export function SetBuilderView({
           </div>
         </div>
       </div>
-      )}
 
       {/* DIRTY CONFIG WARNING BANNER */}
-      {!isAssignmentMode && isConfigDirty && (
+      {isConfigDirty && (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-xs animate-in fade-in">
           <div className="flex items-center space-x-2.5">
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -1699,7 +1535,7 @@ export function SetBuilderView({
             </div>
           </div>
           <button
-            onClick={!isTeacher ? () => setShowFeaturesModal(true) : handleBuild}
+            onClick={handleBuild}
             className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-xs shrink-0 flex items-center space-x-1.5"
           >
             <Sparkles className="h-3.5 w-3.5" />
@@ -1736,9 +1572,9 @@ export function SetBuilderView({
       )}
 
       {/* TEACHER BLOCK (COLLAPSIBLE, NOT STICKY) */}
-      {!isAssignmentMode && hasBuilt && builtEntries.length > 0 && (
+      {hasBuilt && builtEntries.length > 0 && (
         <div ref={firstTaskRef}>
-          <div className={`w-fit flex items-center gap-2 h-14 ${!isFinished ? 'sm:!-mt-[5.5rem]' : ''}`}>
+          <div className={`w-fit flex items-center h-14 ${!isFinished ? 'sm:!-mt-[5.5rem]' : ''}`}>
             <button
               type="button"
               onClick={() => setShowTeacherBlock((prev) => !prev)}
@@ -1750,31 +1586,15 @@ export function SetBuilderView({
                 className={`h-3.5 w-3.5 transition-transform ${showTeacherBlock ? 'rotate-180' : ''}`}
               />
             </button>
-            {hasBuilt && onCreateAssignment !== undefined && (
-              <button
-                type="button"
-                onClick={() => onCreateAssignment?.({
-                  title: builtTitle || effectiveTitle,
-                  seed: builtSeed,
-                  setConfig: { slots: builtSlots, title: builtTitle, seed: builtSeed, code: builtCode },
-                })}
-                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors shadow-xs cursor-pointer"
-              >
-                <span>📋</span>
-                <span>Выдать как ДЗ</span>
-              </button>
-            )}
           </div>
 
-          {showTeacherBlock && (
-            <div className="mt-4">
-              <SetCheckerBlock
-                entries={builtEntries}
-                currentSetCode={currentShortCode}
-                fileCodeLabel={currentFileCode}
-              />
-            </div>
-          )}
+          <div className={`mt-4 ${showTeacherBlock ? '' : 'hidden'}`}>
+            <SetCheckerBlock
+              entries={builtEntries}
+              currentSetCode={currentShortCode}
+              fileCodeLabel={currentFileCode}
+            />
+          </div>
         </div>
       )}
 
@@ -1782,32 +1602,13 @@ export function SetBuilderView({
       {hasBuilt && (
         <div className="space-y-6">
           {/* HEADER ABOVE TASK TABLE / LIST: SET TITLE, BADGES, CODE, COPY, DOWNLOAD ARCHIVE, PRINT/PDF */}
-          {isAssignmentMode && hasBuilt && (
-            <div className="bg-theme-card border border-theme-border rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-sm font-bold text-theme-text truncate">
-                    {assignmentTitle || 'Домашнее задание'}
-                  </h2>
-                  <p className="text-xs text-theme-text-muted mt-0.5">
-                    {builtEntries.length} {plural(builtEntries.length, 'задание', 'задания', 'заданий')}
-                    {isFinished && <span className="ml-2 text-emerald-500 font-semibold">· Завершён</span>}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          {!isAssignmentMode && (
           <div className="bg-theme-card border border-theme-border rounded-2xl p-4 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <span className="text-xs font-bold text-theme-text uppercase tracking-wider">
                   {builtTitle || effectiveTitle}
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
+                <span className="text-[10px] font-sans tabular-nums px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800">
                   {builtEntries.length} {plural(builtEntries.length, 'задание', 'задания', 'заданий')}
                 </span>
                 {isFinished && (
@@ -1818,7 +1619,7 @@ export function SetBuilderView({
               </div>
 
               <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap gap-2">
-                <div className="bg-theme-bg border border-theme-border font-mono text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs break-all">
+                <div className="bg-theme-bg border border-theme-border font-sans tabular-nums text-xs px-3 py-2 rounded-xl text-blue-600 dark:text-blue-400 font-bold max-w-xs break-all">
                   {builtCode}
                 </div>
 
@@ -1835,158 +1636,151 @@ export function SetBuilderView({
                   <span>{codeCopied ? 'Скопировано!' : 'Копировать'}</span>
                 </button>
 
-                {!isAssignmentMode && (
-                  <button
-                    onClick={handleDownloadZip}
-                    disabled={!hasBuilt || builtEntries.length === 0 || isExportingZip}
-                    className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Скачать архив набора"
-                  >
-                    {isExportingZip ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                        <span>Сборка архива...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span>Скачать архив</span>
-                      </>
-                    )}
-                  </button>
-                )}
+                <button
+                  onClick={handleDownloadZip}
+                  disabled={!hasBuilt || builtEntries.length === 0 || isExportingZip}
+                  className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Скачать архив набора"
+                >
+                  {isExportingZip ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <span>Сборка архива...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <span>Скачать архив</span>
+                    </>
+                  )}
+                </button>
 
                 {/* Print / PDF dropdown */}
-                {!isAssignmentMode && (
-                  <div className="relative" ref={printMenuRef}>
-                    <button
-                      onClick={() => {
-                        const next = !showPrintMenu;
-                        setShowPrintMenu(next);
-                        if (next) {
-                          track('print_opened', { mode: 'set' });
-                        }
-                      }}
-                      disabled={!hasBuilt || builtEntries.length === 0}
-                      className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Печать / Экспорт набора в PDF"
-                    >
-                      <Printer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <span>Печать / PDF</span>
-                      <ChevronDown className={`h-3 w-3 transition-transform ${showPrintMenu ? 'rotate-180' : ''}`} />
-                    </button>
+                <div className="relative" ref={printMenuRef}>
+                  <button
+                    onClick={() => {
+                      const next = !showPrintMenu;
+                      setShowPrintMenu(next);
+                      if (next) {
+                        track('print_opened', { mode: 'set' });
+                      }
+                    }}
+                    disabled={!hasBuilt || builtEntries.length === 0}
+                    className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Печать / Экспорт набора в PDF"
+                  >
+                    <Printer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span>Печать / PDF</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showPrintMenu ? 'rotate-180' : ''}`} />
+                  </button>
 
-                    {showPrintMenu && (
-                      <div className="absolute right-0 mt-2 w-72 bg-theme-card border border-theme-border rounded-2xl p-4 shadow-xl z-50 space-y-4 animate-in fade-in zoom-in-95">
-                        <div className="flex items-center justify-between border-b border-theme-border pb-2">
-                          <span className="text-xs font-bold text-theme-text flex items-center space-x-1.5">
-                            <Printer className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                            <span>Параметры печати набора</span>
-                          </span>
-                          <button
-                            onClick={() => setShowPrintMenu(false)}
-                            className="text-theme-text-muted hover:text-theme-text text-xs p-1"
-                          >
-                            &times;
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[11px] font-bold text-theme-text-muted uppercase tracking-wider block">
-                            Ответы к заданиям:
-                          </label>
-                          <div className="space-y-1.5 text-xs text-theme-text">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="set-print-answers"
-                                checked={printAnswers === 'none'}
-                                onChange={() => setPrintAnswers('none')}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span>Без ответов (для ученика)</span>
-                            </label>
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="set-print-answers"
-                                checked={printAnswers === 'inline'}
-                                onChange={() => setPrintAnswers('inline')}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span>Ответы у номеров заданий</span>
-                            </label>
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="set-print-answers"
-                                checked={printAnswers === 'keys'}
-                                onChange={() => setPrintAnswers('keys')}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span>Ключи в конце набора</span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-theme-border">
-                          <label className="flex items-center space-x-2 text-xs text-theme-text cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={printSolutions}
-                              onChange={(e) => setPrintSolutions(e.target.checked)}
-                              className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
-                            <span className="font-semibold">С подробным разбором</span>
-                          </label>
-                        </div>
-
-                        {isConfigDirty && (
-                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-xl flex items-center space-x-2 text-[11px] text-amber-900 dark:text-amber-200">
-                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                            <span>Параметры набора были изменены. Соберите набор заново перед печатью.</span>
-                          </div>
-                        )}
-
+                  {showPrintMenu && (
+                    <div className="absolute right-0 mt-2 w-72 bg-theme-card border border-theme-border rounded-2xl p-4 shadow-xl z-50 space-y-4 animate-in fade-in zoom-in-95">
+                      <div className="flex items-center justify-between border-b border-theme-border pb-2">
+                        <span className="text-xs font-bold text-theme-text flex items-center space-x-1.5">
+                          <Printer className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                          <span>Параметры печати набора</span>
+                        </span>
                         <button
-                          onClick={() => {
-                            if (isConfigDirty) return;
-                            setShowPrintMenu(false);
-                            setTimeout(() => {
-                              printDocument();
-                            }, 60);
-                          }}
-                          className={`w-full py-2.5 px-4 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center space-x-2 transition-all cursor-pointer ${
-                            isConfigDirty ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
-                          }`}
+                          onClick={() => setShowPrintMenu(false)}
+                          className="text-theme-text-muted hover:text-theme-text text-xs p-1"
                         >
-                          <Printer className="h-4 w-4" />
-                          <span>{isConfigDirty ? 'Сначала пересоберите набор' : 'Распечатать / Сохранить в PDF'}</span>
+                          &times;
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-theme-text-muted uppercase tracking-wider block">
+                          Ответы к заданиям:
+                        </label>
+                        <div className="space-y-1.5 text-xs text-theme-text">
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="set-print-answers"
+                              checked={printAnswers === 'none'}
+                              onChange={() => setPrintAnswers('none')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Без ответов (для ученика)</span>
+                          </label>
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="set-print-answers"
+                              checked={printAnswers === 'inline'}
+                              onChange={() => setPrintAnswers('inline')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Ответы у номеров заданий</span>
+                          </label>
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="set-print-answers"
+                              checked={printAnswers === 'keys'}
+                              onChange={() => setPrintAnswers('keys')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Ключи в конце набора</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-theme-border">
+                        <label className="flex items-center space-x-2 text-xs text-theme-text cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={printSolutions}
+                            onChange={(e) => setPrintSolutions(e.target.checked)}
+                            className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="font-semibold">С подробным разбором</span>
+                        </label>
+                      </div>
+
+                      {isConfigDirty && (
+                        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-xl flex items-center space-x-2 text-[11px] text-amber-900 dark:text-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>Параметры набора были изменены. Соберите набор заново перед печатью.</span>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          if (isConfigDirty) return;
+                          setShowPrintMenu(false);
+                          setTimeout(() => {
+                            printDocument();
+                          }, 60);
+                        }}
+                        className={`w-full py-2.5 px-4 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center space-x-2 transition-all cursor-pointer ${
+                          isConfigDirty ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                      >
+                        <Printer className="h-4 w-4" />
+                        <span>{isConfigDirty ? 'Сначала пересоберите набор' : 'Распечатать / Сохранить в PDF'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Checkbox: Скрыть проверку до завершения */}
-            {!isAssignmentMode && (
-              <div className="mt-3 pt-3 border-t border-theme-border/60 flex items-center justify-between flex-wrap gap-2">
-                <label className="flex items-center space-x-2 text-xs font-semibold text-theme-text cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={!allowStudentCheck}
-                    onChange={(e) => setAllowStudentCheck(!e.target.checked)}
-                    disabled={isFinished}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
-                  />
-                  <span>Скрыть проверку до завершения</span>
-                </label>
-              </div>
-            )}
+            <div className="mt-3 pt-3 border-t border-theme-border/60 flex items-center justify-between flex-wrap gap-2">
+              <label className="flex items-center space-x-2 text-xs font-semibold text-theme-text cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!allowStudentCheck}
+                  onChange={(e) => setAllowStudentCheck(!e.target.checked)}
+                  disabled={isFinished}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                />
+                <span>Скрыть проверку до завершения</span>
+              </label>
+            </div>
           </div>
-          )}
 
           {/* SUMMARY BLOCK AFTER FINISH (ABOVE POSITIONS LIST) */}
           {isFinished && (
@@ -2008,7 +1802,7 @@ export function SetBuilderView({
                   <div className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-xs font-bold text-blue-700 dark:text-blue-300">
                     {summaryStats.totalScore} из {summaryStats.totalMaxScore} баллов
                   </div>
-                  <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text font-mono">
+                  <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs text-theme-text font-sans tabular-nums">
                     Время: <strong className="text-theme-text">{formatBannerTime(elapsedSeconds)}</strong>
                   </div>
                   <div className="px-3 py-1.5 rounded-xl bg-theme-bg border border-theme-border text-xs font-medium text-theme-text">
@@ -2066,7 +1860,7 @@ export function SetBuilderView({
                 onClick={() => setActivePosition(entry.position)}
                 onFocus={() => setActivePosition(entry.position)}
               >
-                {!isFinished && !isAssignmentMode && (
+                {!isFinished && (
                   <div className="absolute top-4 sm:top-5 right-4 sm:right-6 z-10">
                     <button
                       type="button"
@@ -2104,8 +1898,6 @@ export function SetBuilderView({
                       : (panelStates[entry.position]?.result ?? null)
                   }
                   onPanelStateChange={handlePanelStateChange}
-                  hideReviewUntilFinish={hideReviewUntilFinish}
-                  isFinished={isFinished}
                 />
               </div>
             ))}
@@ -2130,81 +1922,6 @@ export function SetBuilderView({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* FEATURES MODAL */}
-      {showFeaturesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-theme-card border border-theme-border rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-theme-text">Возможности аккаунтов</h3>
-              <button
-                onClick={() => setShowFeaturesModal(false)}
-                className="p-1.5 rounded-lg text-theme-text-muted hover:bg-theme-border/50 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-theme-border">
-                    <th className="text-left py-2 pr-4 font-semibold text-theme-text-muted">Возможность</th>
-                    <th className="text-center py-2 px-3 font-semibold text-theme-text-muted">Без акк.</th>
-                    <th className="text-center py-2 px-3 font-semibold text-theme-text-muted">Ученик</th>
-                    <th className="text-center py-2 px-3 font-semibold text-indigo-600 dark:text-indigo-400">Учитель</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-theme-border/50">
-                  {[
-                    ['Тренажёр', true, true, true],
-                    ['Вариант ОГЭ', true, true, true],
-                    ['Сохранение результатов', false, true, true],
-                    ['Домашние задания', false, true, true],
-                    ['Создание наборов', false, false, true],
-                    ['Выдача ДЗ ученикам', false, false, true],
-                    ['Управление классами', false, false, true],
-                  ].map(([label, guest, student, teacher]) => (
-                    <tr key={String(label)} className="hover:bg-theme-bg/40">
-                      <td className="py-2.5 pr-4 text-theme-text-sec">{String(label)}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        {guest
-                          ? <span className="text-emerald-500">✓</span>
-                          : <span className="text-theme-text-muted/40">—</span>}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {student
-                          ? <span className="text-emerald-500">✓</span>
-                          : <span className="text-theme-text-muted/40">—</span>}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {teacher
-                          ? <span className="text-emerald-500 font-bold">✓</span>
-                          : <span className="text-theme-text-muted/40">—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-1 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowFeaturesModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-theme-text-sec bg-theme-bg hover:bg-theme-border/50 border border-theme-border rounded-xl transition-colors cursor-pointer"
-              >
-                Закрыть
-              </button>
-              <button
-                onClick={() => { setShowFeaturesModal(false); onRequestAuth?.(); }}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
-              >
-                Войти / Зарегистрироваться
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

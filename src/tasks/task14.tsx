@@ -156,7 +156,7 @@ export const Task14PieChart: React.FC<{ chartData: { district: string; count: nu
       </div>
 
       <div className="space-y-2 text-xs font-mono max-h-60 overflow-y-auto pr-2">
-        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-sans">
+        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 font-sans">
           Легенда и подписи данных:
         </div>
         {slices.map((slice, idx) => (
@@ -165,7 +165,7 @@ export const Task14PieChart: React.FC<{ chartData: { district: string; count: nu
               className="w-3.5 h-3.5 rounded-sm shrink-0 border border-white/20"
               style={{ backgroundColor: slice.color }}
             />
-            <span className="text-slate-200 font-sans font-medium min-w-[80px]">
+            <span className="text-slate-700 dark:text-slate-200 font-sans font-medium min-w-[80px]">
               {slice.district}:
             </span>
             <span className="text-blue-600 dark:text-blue-400 font-bold">
@@ -290,7 +290,6 @@ export async function buildTask14XlsxBlob(taskData: Task14Data): Promise<Blob> {
 
 const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
   const [u1, u2, flag] = parseUserAnswer(state.userAnswer);
-  const secondFieldRef = React.useRef<HTMLInputElement>(null);
 
   const handleU1Change = (val: string) => {
     state.setUserAnswer(encodeUserAnswer(val, u2, flag));
@@ -298,22 +297,6 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
 
   const handleU2Change = (val: string) => {
     state.setUserAnswer(encodeUserAnswer(u1, val, flag));
-  };
-
-  const handleFirstFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    if (e.nativeEvent.isComposing) return;
-    e.preventDefault();
-    secondFieldRef.current?.focus();
-  };
-
-  const handleSecondFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    if (e.nativeEvent.isComposing) return;
-    if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
-    if (!u2.trim()) return;
-    e.preventDefault();
-    state.onCheck();
   };
 
   const handleDownloadXLSX = async () => {
@@ -390,7 +373,6 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
             label={`Вопрос 1: ${taskData.questions[0]}`}
             value={u1}
             onChange={handleU1Change}
-            onKeyDown={handleFirstFieldKeyDown}
             disabled={state.isSubmitted}
             placeholder="Число (например, 139)"
             maxWidth="sm"
@@ -421,11 +403,9 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
         {/* Question 2 Input */}
         <div className="space-y-2">
           <AnswerField
-            ref={secondFieldRef}
             label={`Вопрос 2: ${taskData.questions[1]}`}
             value={u2}
             onChange={handleU2Change}
-            onKeyDown={handleSecondFieldKeyDown}
             disabled={state.isSubmitted}
             placeholder="Число (например, 52)"
             maxWidth="sm"

@@ -721,10 +721,6 @@ export const task1: TaskModule = {
           label="Ваш ответ:"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
-          onEnter={() => {
-            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
-            state.onCheck();
-          }}
           disabled={state.isSubmitted}
           placeholder={/^\d+$/.test(taskData.correctAnswer) ? "Введите число…" : "Введите слово…"}
         />

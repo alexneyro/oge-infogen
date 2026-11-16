@@ -627,10 +627,6 @@ export const task4: TaskModule = {
           label="Ваш ответ (длина кратчайшего пути):"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
-          onEnter={() => {
-            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
-            state.onCheck();
-          }}
           disabled={state.isSubmitted}
           mono
           maxWidth="xs"

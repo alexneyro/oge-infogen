@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, 
@@ -30,128 +29,14 @@ import { VariantView, VariantInfo } from './components/VariantView';
 import { SetBuilderView, SetInfo } from './components/SetBuilderView';
 import { ThemeToggle } from './components/ThemeToggle';
 import { AuthStub } from './components/AuthStub';
-import { AuthModal } from './components/AuthModal';
 import { TaskBadge } from './components/TaskBadge';
 import { parseUserAnswer16 } from './tasks/task16';
 import { buildBugReportText } from './utils/bugReport';
 import { track } from './utils/analytics';
-import { saveSession, startSession, completeSession, updateSessionAnswers } from './lib/sessions';
-import { sendNotificationToTeacher } from './lib/notifications';
-import { supabase } from './lib/supabase';
-import { useAuth } from './hooks/useAuth';
-import { useAssignments } from './hooks/useAssignments';
-import { useClasses } from './hooks/useClasses';
-import { AssignmentCreateModal } from './components/AssignmentCreateModal';
-import { CabinetLayout } from './layouts/CabinetLayout';
-import { TeacherProfilePage } from './pages/teacher/ProfilePage';
-import { ClassesPage } from './pages/teacher/ClassesPage';
-import { ClassDetailPage } from './pages/teacher/ClassDetailPage';
-import { StudentProfilePage } from './pages/teacher/StudentProfilePage';
-import { AssignmentsPage as TeacherAssignmentsPage } from './pages/teacher/AssignmentsPage';
-import { AssignmentDetailPage } from './pages/teacher/AssignmentDetailPage';
-import { TeacherStatsPage } from './pages/teacher/StatsPage';
-import { TeacherHistoryPage } from './pages/teacher/HistoryPage';
-import { AssignmentsPage as StudentAssignmentsPage } from './pages/student/AssignmentsPage';
-import { StatsPage } from './pages/student/StatsPage';
-import { HistoryPage } from './pages/student/HistoryPage';
-import { ProfilePage } from './pages/student/ProfilePage';
 
 export default function App() {
-  const { user, profile } = useAuth();
-  const { createAssignment, fetchAssignments } = useAssignments();
-  const { classes } = useClasses();
-
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
-  const [pendingAssignment, setPendingAssignment] = useState<{ title: string; seed: string; setConfig: Record<string, unknown> } | null>(null);
-  const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
-  const [pendingClassId, setPendingClassId] = useState<string | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [assignmentMeta, setAssignmentMeta] = useState<{ code: string; title: string; hideReview: boolean; assignmentType?: 'homework' | 'classwork' } | null>(null);
-  const userRef = useRef(user);
-  userRef.current = user;
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const timerSaveInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastAnswersRef = useRef<Record<string, string>>({});
-  const lastElapsedRef = useRef<number>(0);
-  const activeSessionIdRef = useRef<string | null>(null);
-  const [initialSetAnswers, setInitialSetAnswers] = useState<Record<number, string> | null>(null);
-  const [initialSetElapsed, setInitialSetElapsed] = useState<number>(0);
-
-  useEffect(() => {
-    activeSessionIdRef.current = activeSessionId;
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    if (!activeSessionId) {
-      if (timerSaveInterval.current) {
-        clearInterval(timerSaveInterval.current);
-        timerSaveInterval.current = null;
-      }
-      return;
-    }
-    timerSaveInterval.current = setInterval(() => {
-      if (activeSessionIdRef.current && lastElapsedRef.current > 0) {
-        updateSessionAnswers(
-          activeSessionIdRef.current,
-          lastAnswersRef.current,
-          lastElapsedRef.current,
-        ).catch((err) => console.error('[timerSave] error:', err));
-      }
-    }, 30000);
-    return () => {
-      if (timerSaveInterval.current) {
-        clearInterval(timerSaveInterval.current);
-        timerSaveInterval.current = null;
-      }
-    };
-  }, [activeSessionId]);
   // Mode state: 'single' (Task Trainer) vs 'variant' (Variant Mode) vs 'set' (Set Builder)
   const [activeMode, setActiveMode] = useState<AppMode>('single');
-
-  useEffect(() => {
-    if (!user) {
-      // Сбрасываем состояние ДЗ
-      setAssignmentMeta(null);
-      setPendingAssignmentId(null);
-      setActiveSessionId(null);
-      setInitialSetAnswers(null);
-      setInitialSetElapsed(0);
-      lastElapsedRef.current = 0;
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-        autoSaveTimer.current = null;
-      }
-      // Сбрасываем режим
-      setActiveMode('single');
-      // Сбрасываем состояние тренажера
-      setSelectedTaskId(null);
-      setTaskInstance(null);
-      setUserAnswer('');
-      setIsSubmitted(false);
-      setShowHints(false);
-      setCurrentSeed(null);
-      // Очищаем URL-параметры тренажера
-      window.history.replaceState({}, '', window.location.pathname);
-      // Очищаем sessionStorage (прогресс варианта и набора)
-      sessionStorage.removeItem('oge:variant:v1');
-      sessionStorage.removeItem('oge:set:v2');
-      // Очищаем все pending-ключи из localStorage
-      localStorage.removeItem('pendingAssignmentCode');
-      localStorage.removeItem('pendingAssignmentTitle');
-      localStorage.removeItem('pendingAssignmentHideReview');
-      localStorage.removeItem('pendingAssignmentId');
-      localStorage.removeItem('pendingAssignmentType');
-      localStorage.removeItem('pendingSetCode');
-      localStorage.removeItem('pendingInviteCode');
-      localStorage.removeItem('pendingClassId');
-    } else {
-      // При входе в аккаунт ученика — выходим из режима набора
-      if (profile?.role === 'student' && activeMode === 'set' && !assignmentMeta) {
-        setActiveMode('single');
-      }
-    }
-  }, [user, profile?.role]);
   const scrollPositions = useRef<Record<AppMode, number>>(
     { single: 0, variant: 0, set: 0 }
   );
@@ -199,6 +84,7 @@ export default function App() {
   
   // Current active generated task instance
   const [taskInstance, setTaskInstance] = useState<TaskInstance | null>(null);
+  const taskCardRef = useRef<HTMLDivElement>(null);
   
   // Inputs for task answers
   const [userAnswer, setUserAnswer] = useState<string>('');
@@ -269,6 +155,18 @@ export default function App() {
     setIsSubmitted(false);
     setShowHints(false);
     lastCountedRef.current = null;
+    setTimeout(() => {
+      const el = taskCardRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const OFFSET = 115;
+      const THRESHOLD = 120;
+      // скроллить только если верх карточки выше навбара
+      if (rect.top < OFFSET - THRESHOLD) {
+        const targetY = window.scrollY + rect.top - OFFSET;
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+      }
+    }, 50);
 
     const activeDiff = options?.difficulty ?? difficulty;
 
@@ -353,169 +251,6 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const invite = new URLSearchParams(window.location.search).get('invite');
-    if (invite !== null && invite.length === 6) {
-      localStorage.setItem('pendingInviteCode', invite.toUpperCase());
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  useEffect(() => {
-    const pendingCode = localStorage.getItem('pendingAssignmentCode');
-    const pendingTitle = localStorage.getItem('pendingAssignmentTitle') || '';
-    const pendingHideReview = localStorage.getItem('pendingAssignmentHideReview') === 'true';
-    if (pendingCode) {
-      setAssignmentMeta({ code: pendingCode, title: pendingTitle, hideReview: pendingHideReview });
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleOpenSetWithCode = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      const code = detail?.code 
-        || localStorage.getItem('pendingAssignmentCode') 
-        || localStorage.getItem('pendingSetCode');
-      // detail имеет приоритет над localStorage
-      const title = detail?.title 
-        || localStorage.getItem('pendingAssignmentTitle') 
-        || '';
-      if (code) {
-        const assignmentCode = detail?.code 
-          || localStorage.getItem('pendingAssignmentCode') 
-          || code;
-        // ИСПРАВЛЕНИЕ: detail?.title первым, localStorage вторым
-        const assignmentTitle = detail?.title 
-          || localStorage.getItem('pendingAssignmentTitle') 
-          || title;
-        const assignmentHideReviewVal = detail?.hideReview ?? (localStorage.getItem('pendingAssignmentHideReview') === 'true');
-        const assignmentType = (detail?.assignmentType 
-          || localStorage.getItem('pendingAssignmentType') 
-          || 'homework') as 'homework' | 'classwork';
-        if (assignmentCode) {
-          console.log('[assignmentMeta] setting:', { 
-            detailTitle: (e as CustomEvent).detail?.title,
-            localTitle: localStorage.getItem('pendingAssignmentTitle'),
-            assignmentTitle,
-            assignmentType,
-          });
-          setAssignmentMeta({ code: assignmentCode, title: assignmentTitle, hideReview: assignmentHideReviewVal, assignmentType });
-        }
-        setActiveMode('set');
-
-        const dispatchLoad = () => {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('loadSetCode', { detail: { code } }));
-          }, 100);
-        };
-
-        const assignmentId = detail?.assignmentId 
-          || localStorage.getItem('pendingAssignmentId');
-        const classId = detail?.classId || localStorage.getItem('pendingClassId');
-        if (classId) {
-          setPendingClassId(classId);
-        }
-        const currentUser = userRef.current;
-
-        if (assignmentId) {
-          setPendingAssignmentId(assignmentId);
-
-          // Загрузить существующую in_progress сессию с ответами
-          if (currentUser) {
-            (supabase as any)
-              .from('sessions')
-              .select('id, answers, time_spent_seconds')
-              .eq('user_id', currentUser.id)
-              .eq('assignment_id', assignmentId)
-              .eq('status', 'in_progress')
-              .maybeSingle()
-              .then(({ data }: { data: any }) => {
-                if (data?.id) {
-                  setActiveSessionId(data.id);
-                  if (data?.answers && Object.keys(data.answers).length > 0) {
-                    // answers в БД хранятся в формате onFinish (с объектом {answer, score...})
-                    // для in_progress через onAnswerChange хранятся как {position: answerString}
-                    // Нужно определить формат и преобразовать в Record<number, string>
-                    const raw = data.answers as Record<string, unknown>;
-                    const converted: Record<number, string> = {};
-                    for (const [k, v] of Object.entries(raw)) {
-                      if (typeof v === 'string') {
-                        // Формат onAnswerChange: { "1": "ответ" }
-                        converted[Number(k)] = v;
-                      } else if (typeof v === 'object' && v !== null && 'answer' in v) {
-                        // Формат onFinish: { "1": { answer: "ответ", ... } }
-                        converted[Number(k)] = String((v as any).answer ?? '');
-                      }
-                    }
-                    if (Object.keys(converted).length > 0) {
-                      setInitialSetAnswers(converted);
-                      setInitialSetElapsed(data.time_spent_seconds ?? 0);
-                    }
-                  }
-                } else if (assignmentType === 'classwork') {
-                  // нет существующей сессии — создать новую
-                  startSession(currentUser.id, assignmentId, null).then((sid) => {
-                    if (sid) setActiveSessionId(sid);
-                  });
-                }
-                dispatchLoad();
-              })
-              .catch((err: unknown) => {
-                console.error('[openSetWithCode] error loading in_progress session:', err);
-                if (assignmentType === 'classwork') {
-                  startSession(currentUser.id, assignmentId, null).then((sid) => {
-                    if (sid) setActiveSessionId(sid);
-                  });
-                }
-                dispatchLoad();
-              });
-          } else {
-            dispatchLoad();
-          }
-        } else {
-          dispatchLoad();
-        }
-      }
-    };
-    window.addEventListener('openSetWithCode', handleOpenSetWithCode);
-    return () => window.removeEventListener('openSetWithCode', handleOpenSetWithCode);
-  }, []);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (!activeSessionIdRef.current || !Object.keys(lastAnswersRef.current).length) return;
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-        autoSaveTimer.current = null;
-      }
-      // Используем sendBeacon через fetch keepalive
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/sessions?id=eq.${activeSessionIdRef.current}`;
-      const body = JSON.stringify({
-        answers: lastAnswersRef.current,
-        time_spent_seconds: lastElapsedRef.current,
-      });
-      navigator.sendBeacon
-        ? navigator.sendBeacon(
-            url + '&apikey=' + import.meta.env.VITE_SUPABASE_ANON_KEY,
-            new Blob([body], { type: 'application/json' })
-          )
-        : fetch(url, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Prefer': 'return=minimal',
-            },
-            body,
-            keepalive: true,
-          });
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [activeSessionId]);
-
   const handleCopySeed = () => {
     if (!currentSeed) return;
     navigator.clipboard.writeText(currentSeed).then(() => {
@@ -536,133 +271,6 @@ export default function App() {
       number: taskInstance.taskId,
       difficulty: activeDiff,
       correct: isCorrect ? 1 : 0,
-    });
-    if (user) {
-      saveSession(user.id, {
-        mode: 'single',
-        variant_seed: currentSeed,
-        score: isCorrect ? 1 : 0,
-        max_score: 1,
-        time_spent_seconds: 0,
-        answers: { '1': { answer: userAnswer, correct: isCorrect, score: isCorrect ? 1 : 0, maxScore: 1, taskId: taskInstance.taskId } },
-        task_type: taskInstance.taskId,
-      });
-    }
-  };
-
-  const handleVariantFinish = async (result: { score: number; maxScore: number; seed: string | null; timeSpentSeconds: number; answers: Record<string, unknown> }) => {
-    if (!user) return;
-    await saveSession(user.id, {
-      mode: 'variant',
-      variant_seed: result.seed,
-      score: result.score,
-      max_score: result.maxScore,
-      time_spent_seconds: result.timeSpentSeconds,
-      answers: result.answers,
-      task_type: null,
-    });
-  };
-
-  const handleAnswerChange = useCallback((
-    answers: Record<string, string>,
-    elapsedSeconds: number
-  ) => {
-    lastAnswersRef.current = answers;
-    lastElapsedRef.current = elapsedSeconds;
-    if (!activeSessionId) return;
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-    autoSaveTimer.current = setTimeout(() => {
-      updateSessionAnswers(
-        activeSessionIdRef.current!,
-        answers,
-        elapsedSeconds,
-      ).catch((err) => {
-        console.error('[autoSaveAnswers] error:', err);
-      });
-    }, 10000);
-  }, [activeSessionId]);
-
-  const handleSetFinish = async (result: { score: number; maxScore: number; seed: string | null; timeSpentSeconds: number; answers: Record<string, unknown> }) => {
-    if (!user) return;
-    const finishedAssignmentId = pendingAssignmentId || localStorage.getItem('pendingAssignmentId');
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = null;
-    }
-    lastAnswersRef.current = {};
-    lastElapsedRef.current = 0;
-    try {
-      if (activeSessionId) {
-        await completeSession(activeSessionId, {
-          score: result.score,
-          max_score: result.maxScore,
-          time_spent_seconds: result.timeSpentSeconds,
-          answers: result.answers,
-          variant_seed: result.seed,
-        });
-        setActiveSessionId(null);
-      } else {
-        await saveSession(user.id, {
-          mode: 'set',
-          variant_seed: result.seed,
-          score: result.score,
-          max_score: result.maxScore,
-          time_spent_seconds: result.timeSpentSeconds,
-          answers: result.answers,
-          task_type: null,
-          assignment_id: finishedAssignmentId ?? undefined,
-        });
-      }
-      localStorage.removeItem('pendingAssignmentId');
-      localStorage.removeItem('pendingAssignmentCode');
-      localStorage.removeItem('pendingAssignmentTitle');
-      localStorage.removeItem('pendingAssignmentType');
-      setPendingAssignmentId(null);
-
-      if (finishedAssignmentId) {
-        try {
-          const studentName = [profile?.last_name, profile?.first_name].filter(Boolean).join(' ') || user.email || 'Ученик';
-          const t = result.timeSpentSeconds;
-          const timeSpent = t < 60 ? `${t}с` : `${Math.floor(t / 60)}м ${t % 60}с`;
-          await sendNotificationToTeacher(finishedAssignmentId, 'set_finished', {
-            title: 'Ученик сдал работу',
-            message: `${studentName} завершил задание: ${assignmentMeta?.title || 'Без названия'}`,
-            assignmentTitle: assignmentMeta?.title,
-            assignmentId: finishedAssignmentId,
-            studentName,
-            score: result.score,
-            maxScore: result.maxScore,
-            timeSpent,
-          });
-        } catch {
-          // ignore
-        }
-        setPendingClassId(null);
-        localStorage.removeItem('pendingClassId');
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleCreateAssignmentFromSet = (params: { title: string; seed: string; setConfig: Record<string, unknown> }) => {
-    setPendingAssignment(params);
-    setAssignmentModalOpen(true);
-  };
-
-  const handleAssignmentSubmit = async (params: { classId: string; title: string; dueDate: string | null; maxAttempts: number | null; hideReview?: boolean; assignmentType: 'homework' | 'classwork' }) => {
-    if (!pendingAssignment) return;
-    await createAssignment({
-      classId: params.classId,
-      title: params.title,
-      variantSeed: pendingAssignment.seed,
-      setConfig: pendingAssignment.setConfig,
-      dueDate: params.dueDate,
-      maxAttempts: params.maxAttempts,
-      hideReview: params.hideReview ?? false,
-      assignmentType: params.assignmentType,
     });
   };
 
@@ -758,14 +366,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [reportOpen]);
 
-  const isSingleCheckDisabled = !taskInstance
-    || (taskInstance.taskId === 16
-      ? !parseUserAnswer16(userAnswer).code.trim()
-      : !userAnswer.trim());
-
   return (
-    <Routes>
-      <Route path="/" element={
     <div className={`min-h-screen transition-[color,background-color,border-color,box-shadow] duration-500 bg-theme-bg text-theme-text`}>
       
       {/* HEADER BAR */}
@@ -811,50 +412,17 @@ export default function App() {
               <Layers className="h-3.5 w-3.5" />
               <span>{MODE_LABELS.variant}</span>
             </button>
-            {assignmentMeta && (
-              <div className="flex items-center">
-                <button
-                  onClick={() => handleModeChange('set')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                    activeMode === 'set'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-theme-text-sec hover:text-theme-text'
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>ДЗ</span>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAssignmentMeta(null);
-                    setPendingAssignmentId(null);
-                    localStorage.removeItem('pendingAssignmentCode');
-                    localStorage.removeItem('pendingAssignmentTitle');
-                    localStorage.removeItem('pendingAssignmentId');
-                    localStorage.removeItem('pendingAssignmentHideReview');
-                    if (activeMode === 'set') handleModeChange('single');
-                  }}
-                  className="ml-0.5 p-1 rounded-md text-theme-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                  title="Закрыть ДЗ"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-            {profile?.role !== 'student' && !assignmentMeta && (
-              <button
-                onClick={() => handleModeChange('set')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  activeMode === 'set'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-theme-text-sec hover:text-theme-text'
-                }`}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                <span>{MODE_LABELS.set}</span>
-              </button>
-            )}
+            <button
+              onClick={() => handleModeChange('set')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                activeMode === 'set'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-theme-text-sec hover:text-theme-text'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>{MODE_LABELS.set}</span>
+            </button>
           </div>
 
           {/* Правая зона: тема, профиль, гамбургер */}
@@ -907,72 +475,23 @@ export default function App() {
             <Layers className="h-3.5 w-3.5" />
             <span>{MODE_LABELS.variant}</span>
           </button>
-          {assignmentMeta && (
-            <div className="flex items-center flex-1">
-              <button
-                onClick={() => handleModeChange('set')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
-                  activeMode === 'set'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-theme-text-sec'
-                }`}
-              >
-                <FileText className="h-3.5 w-3.5" />
-                <span>ДЗ</span>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAssignmentMeta(null);
-                  setPendingAssignmentId(null);
-                  localStorage.removeItem('pendingAssignmentCode');
-                  localStorage.removeItem('pendingAssignmentTitle');
-                  localStorage.removeItem('pendingAssignmentId');
-                  localStorage.removeItem('pendingAssignmentHideReview');
-                  if (activeMode === 'set') handleModeChange('single');
-                }}
-                className="ml-0.5 p-1 rounded-md text-theme-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                title="Закрыть ДЗ"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-          {profile?.role !== 'student' && !assignmentMeta && (
-            <button
-              onClick={() => handleModeChange('set')}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
-                activeMode === 'set'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-theme-text-sec'
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>{MODE_LABELS.set}</span>
-            </button>
-          )}
+          <button
+            onClick={() => handleModeChange('set')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
+              activeMode === 'set'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-theme-text-sec'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span>{MODE_LABELS.set}</span>
+          </button>
         </div>
 
         {activeMode === 'variant' ? (
-          <VariantView onVariantInfoChange={setVariantInfo} onFinish={handleVariantFinish} />
+          <VariantView onVariantInfoChange={setVariantInfo} />
         ) : activeMode === 'set' ? (
-          <SetBuilderView
-            onSetInfoChange={setSetInfo}
-            onFinish={handleSetFinish}
-            onAnswerChange={handleAnswerChange}
-            onCreateAssignment={profile?.role === 'teacher' ? handleCreateAssignmentFromSet : undefined}
-            assignmentCode={assignmentMeta?.code}
-            assignmentTitle={assignmentMeta?.title}
-            hideReviewUntilFinish={assignmentMeta?.hideReview ?? false}
-            isTeacher={profile?.role === 'teacher'}
-            initialAnswers={initialSetAnswers ?? undefined}
-            initialElapsed={initialSetElapsed}
-            onElapsedChange={(elapsed) => { lastElapsedRef.current = elapsed; }}
-            onInitialAnswersApplied={() => setInitialSetAnswers(null)}
-            onRequestAuth={() => {
-              setShowAuthModal(true);
-            }}
-          />
+          <SetBuilderView onSetInfoChange={setSetInfo} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
@@ -1205,6 +724,7 @@ export default function App() {
                   
                   /* ACTIVE TASK VISUALS AND RENDERING */
                   <motion.div
+                    ref={taskCardRef}
                     key={taskInstance.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -1260,9 +780,7 @@ export default function App() {
                           setUserAnswer,
                           isSubmitted,
                           showHints,
-                          isCorrect: currentIsCorrect,
-                          onCheck: handleCheck,
-                          isCheckDisabled: isSingleCheckDisabled,
+                          isCorrect: currentIsCorrect
                         }
                       )}
                     </div>
@@ -1306,7 +824,11 @@ export default function App() {
                             <button
                               onClick={handleCheck}
                               id="check-btn"
-                              disabled={isSingleCheckDisabled}
+                              disabled={
+                                taskInstance?.taskId === 16
+                                  ? !parseUserAnswer16(userAnswer).code.trim()
+                                  : !userAnswer.trim()
+                              }
                               className={`py-2 px-5 text-xs font-bold rounded-xl transition-all ${
                                 (taskInstance?.taskId === 16 ? parseUserAnswer16(userAnswer).code.trim() : userAnswer.trim())
                                   ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-md shadow-blue-200/50 dark:shadow-none cursor-pointer'
@@ -1729,39 +1251,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {assignmentModalOpen && pendingAssignment && (
-        <AssignmentCreateModal
-          isOpen={assignmentModalOpen}
-          onClose={() => { setAssignmentModalOpen(false); setPendingAssignment(null); }}
-          defaultTitle={pendingAssignment.title}
-          variantSeed={pendingAssignment.seed}
-          setConfig={pendingAssignment.setConfig}
-          classes={classes}
-          onSubmit={handleAssignmentSubmit}
-        />
-      )}
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
-
     </div>
-      } />
-      <Route element={<CabinetLayout />}>
-        <Route path="/teacher/profile" element={<TeacherProfilePage />} />
-        <Route path="/teacher/classes" element={<ClassesPage />} />
-        <Route path="/teacher/classes/:classId" element={<ClassDetailPage />} />
-        <Route path="/teacher/classes/:classId/students/:studentId" element={<StudentProfilePage />} />
-        <Route path="/teacher/assignments" element={<TeacherAssignmentsPage />} />
-        <Route path="/teacher/assignments/:assignmentId" element={<AssignmentDetailPage />} />
-        <Route path="/teacher/stats" element={<TeacherStatsPage />} />
-        <Route path="/teacher/history" element={<TeacherHistoryPage />} />
-        <Route path="/student/profile" element={<ProfilePage />} />
-        <Route path="/student/assignments" element={<StudentAssignmentsPage />} />
-        <Route path="/student/stats" element={<StatsPage />} />
-        <Route path="/student/history" element={<HistoryPage />} />
-      </Route>
-    </Routes>
   );
 }
