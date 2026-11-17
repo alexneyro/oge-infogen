@@ -25,7 +25,14 @@ import { getTaskById } from '../tasks';
 import { DIFFICULTY_LABELS } from '../types';
 import { parseAnswersText, ParseResult } from '../utils/parseAnswers';
 import { readTextFile } from '../utils/readTextFile';
-import { checkSet, CheckedRow, runProgramsForSet } from '../utils/checkAnswers';
+import {
+  checkSet,
+  CheckedRow,
+  runProgramsForSet,
+  getAutoScore14,
+  applyDiagramToggle14,
+  applyScoreChange,
+} from '../utils/checkAnswers';
 import { gradeFromScore } from '../utils/scoring';
 import { track } from '../utils/analytics';
 
@@ -344,6 +351,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                 score: res.score,
                 status: newStatus,
                 details: res.details,
+                testsPassed: res.passed,
+                testsTotal: res.total,
               };
             } else {
               return {
@@ -400,6 +409,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                   score: res.score,
                   status: newStatus,
                   details: res.details,
+                  testsPassed: res.passed,
+                  testsTotal: res.total,
                 };
               } else {
                 return {
@@ -426,21 +437,22 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     setSubmissions((prev) =>
       prev.map((sub) => {
         if (sub.id !== submissionId) return sub;
-        const updatedRows = sub.rows.map((row) => {
-          if (row.position !== position) return row;
-          const clampedScore = Math.max(0, Math.min(row.maxScore, newScore));
-          let newStatus = row.status;
-          if (clampedScore === row.maxScore) newStatus = 'correct';
-          else if (clampedScore === 0 && row.raw === '') newStatus = 'empty';
-          else if (clampedScore === 0) newStatus = 'wrong';
-          else newStatus = 'correct'; // частичный балл
+        const updatedRows = sub.rows.map((row) =>
+          row.position === position ? applyScoreChange(row, newScore) : row
+        );
+        return { ...sub, rows: updatedRows };
+      })
+    );
+  };
 
-          return {
-            ...row,
-            score: clampedScore,
-            status: newStatus,
-          };
-        });
+  // Переключение галочки «Диаграмма верна (+1 б.)» для задания 14
+  const handleToggleDiagram = (submissionId: string, position: number, checked: boolean) => {
+    setSubmissions((prev) =>
+      prev.map((sub) => {
+        if (sub.id !== submissionId) return sub;
+        const updatedRows = sub.rows.map((row) =>
+          row.position === position ? applyDiagramToggle14(row, checked) : row
+        );
         return { ...sub, rows: updatedRows };
       })
     );
@@ -516,6 +528,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
   const [task13Reports, setTask13Reports] = React.useState<Record<string, { score: number; items: { id: string; label: string; status: string; expected: string; actual: string }[] }>>({});
   const [task13Open, setTask13Open] = React.useState<Record<string, boolean>>({});
   const [task14Open, setTask14Open] = React.useState<Record<string, boolean>>({});
+  const [testsOpen, setTestsOpen] = React.useState<Record<string, boolean>>({});
 
   const handleCheck13 = (subId: string, position: number, taskData: unknown, html: string) => {
     const rowKey = `${subId}-${position}`;
@@ -947,17 +960,22 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                             {/* Статус */}
                             <td className="py-2.5 px-3 text-center">
                               {row.partialManual ? (
-                                <div className="inline-flex flex-col items-center gap-0.5">
-                                  <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                                    row.score > 0
-                                      ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
-                                      : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                                  }`}>
-                                    <AlertCircle className="h-3 w-3" />
-                                    <span>Авто: {row.score}/2 б.</span>
-                                  </span>
-                                  <span className="text-[9px] text-theme-text-muted">+1 б. диаграмма</span>
-                                </div>
+                                (() => {
+                                  const autoScore = getAutoScore14(row);
+                                  return (
+                                    <div className="inline-flex flex-col items-center gap-0.5">
+                                      <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full font-bold text-[11px] ${
+                                        autoScore > 0
+                                          ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300'
+                                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                      }`}>
+                                        <AlertCircle className="h-3 w-3" />
+                                        <span>Авто: {autoScore}/2 б.</span>
+                                      </span>
+                                      <span className="text-[9px] text-theme-text-muted">+1 б. диаграмма</span>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <>
                                   {row.status === 'correct' && (
@@ -983,10 +1001,24 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                       <span>Пусто</span>
                                     </span>
                                   )}
-                                  {row.details && row.details.length > 0 && (
-                                    <div className="text-[10px] text-theme-text-muted mt-1 max-w-[200px] truncate" title={row.details.join('\n')}>
-                                      {row.details.join(', ')}
+                                  {row.testsTotal !== undefined ? (
+                                    <div className="mt-1">
+                                      <span
+                                        className={`inline-flex items-center px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                          (row.testsPassed ?? 0) === row.testsTotal
+                                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                                            : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                        }`}
+                                      >
+                                        Тесты: {row.testsPassed ?? 0}/{row.testsTotal}
+                                      </span>
                                     </div>
+                                  ) : (
+                                    row.details && row.details.length > 0 && (
+                                      <div className="text-[10px] text-theme-text-muted mt-1 max-w-[200px] truncate" title={row.details.join('\n')}>
+                                        {row.details.join(', ')}
+                                      </div>
+                                    )
                                   )}
                                 </>
                               )}
@@ -1190,22 +1222,84 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                             const rowKey14 = `task14-${row.position}`;
                             const entry = activeSubmissionEntries.find((e) => e.position === row.position);
                             const chartData = entry?.taskData?.chartData;
-                            if (!chartData || chartData.length === 0) return null;
+                            const hasChart = Boolean(chartData && chartData.length > 0);
                             return (
                               <tr key={`task14-diagram-${row.position}`} className="bg-blue-50/30 dark:bg-blue-950/10">
                                 <td colSpan={6} className="px-4 py-2">
+                                  <div className="flex flex-wrap items-center gap-4">
+                                    <label className="inline-flex items-center space-x-2 text-xs font-bold text-theme-text cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(row.diagramOk)}
+                                        onChange={(e) =>
+                                          handleToggleDiagram(activeSubmission.id, row.position, e.target.checked)
+                                        }
+                                        className="rounded border-theme-border text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                      />
+                                      <span>Диаграмма верна (+1 б.)</span>
+                                    </label>
+                                    {hasChart && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setTask14Open((prev) => ({ ...prev, [rowKey14]: !prev[rowKey14] }))}
+                                        className="flex items-center space-x-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 hover:underline cursor-pointer"
+                                      >
+                                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${task14Open[rowKey14] ? 'rotate-180' : ''}`} />
+                                        <span>{task14Open[rowKey14] ? 'Скрыть диаграмму' : 'Показать примерную диаграмму'}</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                  {hasChart && task14Open[rowKey14] && (
+                                    <div className="mt-3 max-w-sm">
+                                      <p className="text-[11px] text-theme-text-muted mb-2">Сравните с работой ученика и отметьте галочку «Диаграмма верна». Балл можно поправить вручную в поле выше.</p>
+                                      <Task14PieChart chartData={chartData} />
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                          {(row.taskId === 15 || row.taskId === 16) && (row.testsTotal !== undefined || (row.details && row.details.length > 0)) && (() => {
+                            const rowKeyTests = `${activeSubmission.id}-${row.position}`;
+                            const isOpen = Boolean(testsOpen[rowKeyTests]);
+                            return (
+                              <tr key={`tests-details-${row.position}`} className="bg-slate-50/50 dark:bg-slate-900/20">
+                                <td colSpan={6} className="px-4 py-2">
                                   <button
                                     type="button"
-                                    onClick={() => setTask14Open((prev) => ({ ...prev, [rowKey14]: !prev[rowKey14] }))}
-                                    className="flex items-center space-x-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 hover:underline cursor-pointer"
+                                    onClick={() => setTestsOpen(prev => ({ ...prev, [rowKeyTests]: !prev[rowKeyTests] }))}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1 cursor-pointer"
                                   >
-                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${task14Open[rowKey14] ? 'rotate-180' : ''}`} />
-                                    <span>{task14Open[rowKey14] ? 'Скрыть диаграмму' : 'Показать примерную диаграмму'}</span>
+                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                    <span>
+                                      {row.testsTotal !== undefined
+                                        ? `Посмотреть тесты (${row.testsPassed ?? 0}/${row.testsTotal})`
+                                        : 'Посмотреть тесты'}
+                                    </span>
                                   </button>
-                                  {task14Open[rowKey14] && (
-                                    <div className="mt-3 max-w-sm">
-                                      <p className="text-[11px] text-theme-text-muted mb-2">Сравните с работой ученика и выставьте балл вручную в поле выше.</p>
-                                      <Task14PieChart chartData={chartData} />
+                                  {isOpen && row.details && row.details.length > 0 && (
+                                    <div className="mt-2 space-y-1 pl-2 border-l-2 border-theme-border font-mono">
+                                      {row.details.map((line, idx) => {
+                                        let lineColor = 'text-theme-text';
+                                        if (row.taskId === 16) {
+                                          if (line.includes(': пройден')) {
+                                            lineColor = 'text-emerald-700 dark:text-emerald-400';
+                                          } else if (
+                                            line.includes('не пройден') ||
+                                            line.includes('ошибка выполнения') ||
+                                            line.includes('превышено время')
+                                          ) {
+                                            lineColor = 'text-rose-700 dark:text-rose-400';
+                                          }
+                                        } else if (row.taskId === 15 && idx > 0) {
+                                          lineColor = 'text-rose-700 dark:text-rose-400';
+                                        }
+                                        return (
+                                          <div key={idx} className={`text-[11px] whitespace-pre-wrap break-words ${lineColor}`}>
+                                            {line}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </td>

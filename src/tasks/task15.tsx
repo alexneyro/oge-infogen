@@ -1284,6 +1284,23 @@ const Task15Component: React.FC<{
   );
 };
 
+export function evaluateTask15(taskData: Task15Data, code: string): CheckOutcome {
+  try {
+    const family = ROBOT_FAMILIES.find((f) => f.id === taskData?.familyId) || ROBOT_FAMILIES[0];
+    const visible = ensureFieldInstance(taskData.visible);
+    const hidden = (taskData.hidden || []).map(ensureFieldInstance);
+    return checkSolution(code || '', family, visible, hidden);
+  } catch {
+    const totalInstances = taskData?.visible ? 1 + (taskData.hidden?.length ?? 0) : 0;
+    return {
+      score: 0,
+      maxScore: 2,
+      totalInstances,
+      passedInstances: 0,
+    };
+  }
+}
+
 export const task15: TaskModule = {
   id: 15,
   title: 'Исполнитель «Робот» (КуМир)',
@@ -1362,14 +1379,7 @@ export const task15: TaskModule = {
     if (!userAnswer || !userAnswer.trim()) {
       return { score: 0, maxScore: 2 };
     }
-    try {
-      const family = ROBOT_FAMILIES.find((f) => f.id === taskData.familyId) || ROBOT_FAMILIES[0];
-      const visible = ensureFieldInstance(taskData.visible);
-      const hidden = (taskData.hidden || []).map(ensureFieldInstance);
-      const res = checkSolution(userAnswer, family, visible, hidden);
-      return { score: res.score, maxScore: 2 };
-    } catch {
-      return { score: 0, maxScore: 2 };
-    }
+    const res = evaluateTask15(taskData, userAnswer);
+    return { score: res.score, maxScore: 2 };
   },
 };

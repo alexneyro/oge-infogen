@@ -4,6 +4,8 @@ import { getTaskById } from '../tasks';
 import { getAnswerKey } from './answerKey';
 import { ParseResult, ParsedAnswer } from './parseAnswers';
 import { runTests16, parseUserAnswer16 } from '../tasks/task16';
+import { evaluateTask15 } from '../tasks/task15';
+import { CheckOutcome } from '../tasks/robot/checker';
 
 export interface CheckedRow {
   position: number;
@@ -15,9 +17,45 @@ export interface CheckedRow {
   score: number;
   maxScore: number;
   partialManual?: boolean; // Например, задание 14: авто 2 балла + 1 балл диаграмма вручную
+  autoScore?: number;
+  diagramOk?: boolean;
   subAnswers?: { sub: number; raw: string; correct?: boolean }[];
   details?: string[];
+  testsPassed?: number;
+  testsTotal?: number;
   task13Data?: unknown; // taskData задания 13 для отложенной проверки учителем
+}
+
+export function getAutoScore14(row: CheckedRow): number {
+  return row.autoScore ?? Math.min(row.score, 2);
+}
+
+function resolveScoreStatus(score: number, maxScore: number, raw: string): CheckedRow['status'] {
+  if (score === maxScore) return 'correct';
+  if (score === 0 && raw === '') return 'empty';
+  if (score === 0) return 'wrong';
+  return 'correct';
+}
+
+export function applyDiagramToggle14(row: CheckedRow, checked: boolean): CheckedRow {
+  const auto = getAutoScore14(row);
+  const score = Math.min(row.maxScore, auto + (checked ? 1 : 0));
+  return {
+    ...row,
+    score,
+    status: resolveScoreStatus(score, row.maxScore, row.raw),
+    diagramOk: checked,
+  };
+}
+
+export function applyScoreChange(row: CheckedRow, newScore: number): CheckedRow {
+  const clampedScore = Math.max(0, Math.min(row.maxScore, newScore));
+  return {
+    ...row,
+    score: clampedScore,
+    status: resolveScoreStatus(clampedScore, row.maxScore, row.raw),
+    ...(row.partialManual ? { diagramOk: clampedScore > getAutoScore14(row) } : {}),
+  };
 }
 
 export interface CheckSetResult {
@@ -32,6 +70,31 @@ export interface RunProgramsResult {
   maxScore: number;
   ran: boolean;
   details: string[];
+  passed?: number;
+  total?: number;
+}
+
+export function buildDetails15(outcome: CheckOutcome): string[] {
+  const passed = outcome.passedInstances ?? 0;
+  const lines: string[] = [`Пройдено полей: ${passed} из ${outcome.totalInstances}`];
+
+  if (outcome.parseError) {
+    lines.push(`Синтаксическая ошибка, строка ${outcome.parseError.line}: ${outcome.parseError.message}`);
+  } else if (outcome.fail) {
+    if (outcome.fail.reason) {
+      lines.push(outcome.fail.reason);
+    }
+    const missingCount = outcome.fail.missing?.length ?? 0;
+    const extraCount = outcome.fail.extra?.length ?? 0;
+    if (missingCount > 0) {
+      lines.push(`Не закрашено клеток: ${missingCount}`);
+    }
+    if (extraCount > 0) {
+      lines.push(`Закрашено лишних: ${extraCount}`);
+    }
+  }
+
+  return lines;
 }
 
 /**
@@ -194,6 +257,7 @@ export function checkSet(
           expected,
           status: 'empty',
           score: 0,
+          autoScore: 0,
           maxScore: itemMax,
           partialManual: true,
         });
@@ -216,6 +280,7 @@ export function checkSet(
         expected,
         status: score === 2 ? 'correct' : score > 0 ? 'correct' : 'wrong',
         score,
+        autoScore: score,
         maxScore: itemMax,
         partialManual: true,
         subAnswers: [
@@ -267,6 +332,8 @@ export function checkSet(
         score = ok ? itemMax : 0;
       }
 
+      const outcome15 = evaluateTask15(entry.taskData, trimmedCode);
+
       totalScore += score;
       const firstLine = trimmedCode.split('\n')[0] || '';
       const summaryRaw = trimmedCode.length > 50 ? `${firstLine}... (${trimmedCode.split('\n').length} строк)` : trimmedCode;
@@ -280,6 +347,9 @@ export function checkSet(
         status: score === itemMax ? 'correct' : score > 0 ? 'correct' : 'wrong',
         score,
         maxScore: itemMax,
+        testsPassed: outcome15.passedInstances,
+        testsTotal: outcome15.totalInstances,
+        details: buildDetails15(outcome15),
       });
       continue;
     }

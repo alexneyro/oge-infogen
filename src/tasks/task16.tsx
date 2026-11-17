@@ -64,7 +64,7 @@ export async function runTests16(
   code: string,
   lang: 'python' | 'pascal' | 'cpp',
   opts?: { timeoutMs?: number }
-): Promise<{ score: number; maxScore: number; ran: boolean; details: string[] }> {
+): Promise<{ score: number; maxScore: number; ran: boolean; details: string[]; passed?: number; total?: number }> {
   const normLang = (lang || '').toLowerCase();
   if (normLang !== 'python') {
     return {
@@ -143,9 +143,12 @@ export async function runTests16(
         details.push(`тест ${i + 1}: пройден`);
       } else {
         failedCount++;
-        const received = (res.output || '').trim();
+        const rawExpected = String(test.expected ?? '');
+        const expectedStr = rawExpected.length > 120 ? `${rawExpected.slice(0, 120)}…` : rawExpected;
+        const received = (res.output || '').trim() || '—';
+        const receivedStr = received.length > 120 ? `${received.slice(0, 120)}…` : received;
         details.push(
-          `тест ${i + 1}: не пройден (ожидалось: "${test.expected}", получено: "${received || '—'}")`
+          `тест ${i + 1}: не пройден (ожидалось: "${expectedStr}", получено: "${receivedStr}")`
         );
       }
     }
@@ -164,7 +167,9 @@ export async function runTests16(
     score,
     maxScore: 2,
     ran: true,
-    details
+    details,
+    passed: tests.length - failedCount,
+    total: tests.length,
   };
 }
 

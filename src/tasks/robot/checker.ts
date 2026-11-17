@@ -24,6 +24,7 @@ export interface CheckOutcome {
   parseError?: { message: string; line: number };
   fail?: InstanceResult;
   totalInstances: number;
+  passedInstances?: number;
 }
 
 export function buildInstances(
@@ -54,6 +55,7 @@ export function checkSolution(
       score: 0,
       maxScore: 2,
       totalInstances,
+      passedInstances: 0,
     };
   }
 
@@ -67,6 +69,7 @@ export function checkSolution(
         maxScore: 2,
         parseError: { message: err.message, line: err.line },
         totalInstances,
+        passedInstances: 0,
       };
     }
     return {
@@ -74,12 +77,14 @@ export function checkSolution(
       maxScore: 2,
       parseError: { message: (err as Error).message || 'Ошибка синтаксиса', line: 1 },
       totalInstances,
+      passedInstances: 0,
     };
   }
 
   let firstFail: InstanceResult | undefined = undefined;
   let allPerfect = true;
   let allTolerable = true;
+  let passedInstances = 0;
 
   for (const instance of allInstances) {
     const runRes = runProgram(prog, instance);
@@ -135,7 +140,9 @@ export function checkSolution(
       reason,
     };
 
-    if (!perfect && !firstFail) {
+    if (perfect) {
+      passedInstances++;
+    } else if (!firstFail) {
       firstFail = instResult;
     }
 
@@ -161,5 +168,6 @@ export function checkSolution(
     maxScore: 2,
     fail: firstFail,
     totalInstances,
+    passedInstances,
   };
 }
