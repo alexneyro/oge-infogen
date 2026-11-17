@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -134,6 +134,10 @@ export const RobotCanvas: React.FC<RobotCanvasProps> = ({
   const isDark = useIsDarkTheme();
   const themeMode: 'light' | 'dark' = isDark ? 'dark' : 'light';
   const palette = ROBOT_THEME_PALETTES[themeMode];
+  const rawId = useId();
+  const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
+  const missingHatchId = `missing-hatch-${safeId}`;
+  const crashArrowId = `crash-arrow-${safeId}`;
 
   const totalSteps = log ? log.length : 0;
 
@@ -391,7 +395,7 @@ export const RobotCanvas: React.FC<RobotCanvasProps> = ({
           <defs>
             {/* Hatch pattern for missing cells */}
             <pattern
-              id="missing-hatch"
+              id={missingHatchId}
               width="8"
               height="8"
               patternUnits="userSpaceOnUse"
@@ -402,7 +406,7 @@ export const RobotCanvas: React.FC<RobotCanvasProps> = ({
 
             {/* Crash Arrow Marker */}
             <marker
-              id="crash-arrow"
+              id={crashArrowId}
               viewBox="0 0 10 10"
               refX="6"
               refY="5"
@@ -505,7 +509,7 @@ export const RobotCanvas: React.FC<RobotCanvasProps> = ({
                       width={CELL_SIZE - 4}
                       height={CELL_SIZE - 4}
                       rx={4}
-                      fill="url(#missing-hatch)"
+                      fill={`url(#${missingHatchId})`}
                       className="opacity-70"
                     />
                   </g>
@@ -594,7 +598,7 @@ export const RobotCanvas: React.FC<RobotCanvasProps> = ({
                     y2={robotSvgCenter.cy + dy}
                     stroke={palette.crashStroke}
                     strokeWidth="3.5"
-                    markerEnd="url(#crash-arrow)"
+                    markerEnd={`url(#${crashArrowId})`}
                   />
                 );
               })()}

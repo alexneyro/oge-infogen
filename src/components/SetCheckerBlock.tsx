@@ -106,6 +106,11 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
 
   const activeSubmission = submissions.find((s) => s.id === activeSubId) || submissions[0] || null;
 
+  const activeSubmissionEntries = useMemo(() => {
+    if (!activeSubmission) return entries;
+    return resolveEntries(activeSubmission.parsed, currentSetCode, entries).entries;
+  }, [activeSubmission?.id, activeSubmission?.parsed.setCode, currentSetCode, entries]);
+
   const handleExportExcel = async () => {
     const { utils, writeFile } = await import('xlsx');
 
@@ -512,7 +517,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
   const [task13Open, setTask13Open] = React.useState<Record<string, boolean>>({});
   const [task14Open, setTask14Open] = React.useState<Record<string, boolean>>({});
 
-  const handleCheck13 = (rowKey: string, taskData: unknown, html: string) => {
+  const handleCheck13 = (subId: string, position: number, taskData: unknown, html: string) => {
+    const rowKey = `${subId}-${position}`;
     try {
       const parsed = task13Parsed[rowKey] || parsePastedHtml(html);
       const report = checkTask13(
@@ -524,15 +530,18 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
         ...prev,
         [rowKey]: { score: report.score, items: report.items }
       }));
-      const targetPos = parseInt(rowKey.slice(rowKey.lastIndexOf('-') + 1), 10) || parseInt(rowKey.split('-')[1]);
-      setSubmissions(prev => prev.map(sub => ({
-        ...sub,
-        rows: sub.rows.map(r =>
-          (r.position === targetPos || r.position === parseInt(rowKey.split('-')[1])) && r.taskId === 13
-            ? { ...r, score: report.score, status: report.score > 0 ? 'correct' : 'wrong' }
-            : r
-        )
-      })));
+      setSubmissions(prev => prev.map(sub =>
+        sub.id === subId
+          ? {
+              ...sub,
+              rows: sub.rows.map(r =>
+                r.position === position && r.taskId === 13
+                  ? { ...r, score: report.score, status: report.score > 0 ? 'correct' : 'wrong' }
+                  : r
+              )
+            }
+          : sub
+      ));
     } catch (e) {
       console.error('task13 check error', e);
     }
@@ -1094,6 +1103,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                                 onClick={() => {
                                                   setTask13Inputs(prev => { const n = {...prev}; delete n[rowKey]; return n; });
                                                   setTask13Parsed(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                                  setTask13Reports(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                                  setTask13Open(prev => { const n = {...prev}; delete n[rowKey]; return n; });
                                                 }}
                                                 className="text-[11px] text-rose-500 hover:underline cursor-pointer"
                                               >
@@ -1124,7 +1135,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                     )}
                                     {task13Inputs[rowKey] && !report && (
                                       <button
-                                        onClick={() => handleCheck13(rowKey, row.task13Data, task13Inputs[rowKey])}
+                                        onClick={() => handleCheck13(activeSubmission.id, row.position, row.task13Data, task13Inputs[rowKey])}
                                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer"
                                       >
                                         Проверить
@@ -1132,8 +1143,22 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                     )}
                                     {report && (
                                       <div className="space-y-1.5">
-                                        <div className="text-xs font-bold text-theme-text">
-                                          Результат: {report.score}/2 балла
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="text-xs font-bold text-theme-text">
+                                            Результат: {report.score}/2 балла
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setTask13Inputs(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                              setTask13Parsed(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                              setTask13Reports(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                              setTask13Open(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                            }}
+                                            className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                                          >
+                                            Вставить другой текст
+                                          </button>
                                         </div>
                                         <button
                                           onClick={() => setTask13Open(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
@@ -1163,7 +1188,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                           })()}
                           {row.taskId === 14 && row.partialManual && (() => {
                             const rowKey14 = `task14-${row.position}`;
-                            const entry = entries.find((e) => e.position === row.position) || resolveEntries(activeSubmission.parsed, currentSetCode, entries).entries.find((e) => e.position === row.position);
+                            const entry = activeSubmissionEntries.find((e) => e.position === row.position);
                             const chartData = entry?.taskData?.chartData;
                             if (!chartData || chartData.length === 0) return null;
                             return (

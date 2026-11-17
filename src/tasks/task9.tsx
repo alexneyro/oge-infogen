@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { TaskModule, Difficulty, TaskModuleState } from '../types';
 import { RNG } from '../utils/rng';
 import { StatementBlock, StatementText, StatementQuestion, SubBlock, BlockLabel, AnswerField, AnswerChip, VerdictBox, HintBox } from '../components/task-ui';
@@ -1090,6 +1091,100 @@ export function getTask9Layout(taskData: Task9Data): Task9Layout {
   return layout;
 }
 
+function Task9GraphDiagram({ taskData }: { taskData: Task9Data }) {
+  const rawId = useId();
+  const markerId = `task9-arrow-${rawId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const { uniqueEdges, renderEdgesMap } = getTask9Layout(taskData);
+
+  return (
+    <SubBlock>
+      <BlockLabel>Схема дорог (ориентированный граф):</BlockLabel>
+
+      <div className="w-full overflow-x-auto py-2 flex justify-center items-center">
+        <svg
+          viewBox="0 0 720 440"
+          className="w-full max-w-2xl h-auto select-none"
+        >
+          <defs>
+            <marker
+              id={markerId}
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5" />
+            </marker>
+          </defs>
+
+          {/* Render edges */}
+          {uniqueEdges.map((edge) => {
+            const edgeKey = `${edge.from}->${edge.to}`;
+            const rEdge = renderEdgesMap.get(edgeKey);
+            if (!rEdge) return null;
+
+            if (!rEdge.isCurve) {
+              return (
+                <line
+                  key={rEdge.key}
+                  x1={rEdge.x1}
+                  y1={rEdge.y1}
+                  x2={rEdge.x2}
+                  y2={rEdge.y2}
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  markerEnd={`url(#${markerId})`}
+                />
+              );
+            } else {
+              return (
+                <path
+                  key={rEdge.key}
+                  d={`M ${rEdge.x1} ${rEdge.y1} Q ${rEdge.midX} ${rEdge.midY} ${rEdge.x2} ${rEdge.y2}`}
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  opacity={0.85}
+                  markerEnd={`url(#${markerId})`}
+                />
+              );
+            }
+          })}
+
+          {/* Render nodes */}
+          {taskData.nodes.map((node) => {
+            return (
+              <g key={`n-${node.id}`}>
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r={18}
+                  className="fill-slate-50 dark:fill-slate-800 stroke-indigo-600 dark:stroke-indigo-400"
+                  fill="#f8fafc"
+                  stroke="#4f46e5"
+                  strokeWidth={2}
+                />
+                <text
+                  x={node.x}
+                  y={node.y + 5}
+                  textAnchor="middle"
+                  className="font-extrabold text-sm fill-slate-900 dark:fill-slate-100 select-none"
+                  fontSize={13}
+                  fontWeight="bold"
+                >
+                  {node.name}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </SubBlock>
+  );
+}
+
 export const task9: TaskModule = {
   id: 9,
   title: 'Анализ информации, представленной в виде схем',
@@ -1128,8 +1223,6 @@ export const task9: TaskModule = {
       );
     }
 
-    const { uniqueEdges, renderEdgesMap } = getTask9Layout(taskData);
-
     return (
       <div className="space-y-4">
         {/* Task statement block */}
@@ -1139,91 +1232,7 @@ export const task9: TaskModule = {
           </StatementText>
 
           {/* SVG Diagram SubBlock */}
-          <SubBlock>
-            <BlockLabel>Схема дорог (ориентированный граф):</BlockLabel>
-
-            <div className="w-full overflow-x-auto py-2 flex justify-center items-center">
-              <svg
-                viewBox="0 0 720 440"
-                className="w-full max-w-2xl h-auto select-none"
-              >
-                <defs>
-                  <marker
-                    id="task9-arrow"
-                    viewBox="0 0 10 10"
-                    refX="8"
-                    refY="5"
-                    markerWidth="6"
-                    markerHeight="6"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5" />
-                  </marker>
-                </defs>
-
-                {/* Render edges */}
-                {uniqueEdges.map((edge) => {
-                  const edgeKey = `${edge.from}->${edge.to}`;
-                  const rEdge = renderEdgesMap.get(edgeKey);
-                  if (!rEdge) return null;
-
-                  if (!rEdge.isCurve) {
-                    return (
-                      <line
-                        key={rEdge.key}
-                        x1={rEdge.x1}
-                        y1={rEdge.y1}
-                        x2={rEdge.x2}
-                        y2={rEdge.y2}
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        markerEnd="url(#task9-arrow)"
-                      />
-                    );
-                  } else {
-                    return (
-                      <path
-                        key={rEdge.key}
-                        d={`M ${rEdge.x1} ${rEdge.y1} Q ${rEdge.midX} ${rEdge.midY} ${rEdge.x2} ${rEdge.y2}`}
-                        fill="none"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        opacity={0.85}
-                        markerEnd="url(#task9-arrow)"
-                      />
-                    );
-                  }
-                })}
-
-                {/* Render nodes */}
-                {taskData.nodes.map((node) => {
-                  return (
-                    <g key={`n-${node.id}`}>
-                      <circle
-                        cx={node.x}
-                        cy={node.y}
-                        r={18}
-                        className="fill-slate-50 dark:fill-slate-800 stroke-indigo-600 dark:stroke-indigo-400"
-                        fill="#f8fafc"
-                        stroke="#4f46e5"
-                        strokeWidth={2}
-                      />
-                      <text
-                        x={node.x}
-                        y={node.y + 5}
-                        textAnchor="middle"
-                        className="font-extrabold text-sm fill-slate-900 dark:fill-slate-100 select-none"
-                        fontSize={13}
-                        fontWeight="bold"
-                      >
-                        {node.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-          </SubBlock>
+          <Task9GraphDiagram taskData={taskData} />
 
           {/* Question Text */}
           <StatementQuestion className="pt-2 border-t border-theme-statement-border/50">
