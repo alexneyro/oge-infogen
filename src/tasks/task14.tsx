@@ -1,5 +1,5 @@
 // банки имён заморожены: расширение меняет ответы ранее выданных вариантов
-import React, { useRef } from 'react';
+import React from 'react';
 import { TaskModule, Difficulty, TaskModuleState } from '../types';
 import { RNG } from '../utils/rng';
 import { pickStable, pickManyStable } from '../utils/stablePick';
@@ -290,7 +290,7 @@ export async function buildTask14XlsxBlob(taskData: Task14Data): Promise<Blob> {
 
 const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
   const [u1, u2, flag] = parseUserAnswer(state.userAnswer);
-  const input2Ref = useRef<HTMLInputElement>(null);
+  const secondFieldRef = React.useRef<HTMLInputElement>(null);
 
   const handleU1Change = (val: string) => {
     state.setUserAnswer(encodeUserAnswer(val, u2, flag));
@@ -298,6 +298,22 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
 
   const handleU2Change = (val: string) => {
     state.setUserAnswer(encodeUserAnswer(u1, val, flag));
+  };
+
+  const handleFirstFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    secondFieldRef.current?.focus();
+  };
+
+  const handleSecondFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.nativeEvent.isComposing) return;
+    if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+    if (!u2.trim()) return;
+    e.preventDefault();
+    state.onCheck();
   };
 
   const handleDownloadXLSX = async () => {
@@ -374,14 +390,10 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
             label={`Вопрос 1: ${taskData.questions[0]}`}
             value={u1}
             onChange={handleU1Change}
+            onKeyDown={handleFirstFieldKeyDown}
             disabled={state.isSubmitted}
             placeholder="Число (например, 139)"
             maxWidth="sm"
-            onEnter={() => {
-              if (!state.isSubmitted) {
-                input2Ref.current?.focus();
-              }
-            }}
           />
           {state.isSubmitted && (
             <VerdictBox status={is1Correct ? 'correct' : 'wrong'}>
@@ -409,18 +421,14 @@ const Task14View: React.FC<Task14ViewProps> = ({ taskData, state }) => {
         {/* Question 2 Input */}
         <div className="space-y-2">
           <AnswerField
-            ref={input2Ref}
+            ref={secondFieldRef}
             label={`Вопрос 2: ${taskData.questions[1]}`}
             value={u2}
             onChange={handleU2Change}
+            onKeyDown={handleSecondFieldKeyDown}
             disabled={state.isSubmitted}
             placeholder="Число (например, 52)"
             maxWidth="sm"
-            onEnter={() => {
-              if (!state.isSubmitted && !state.isCheckDisabled && u2.trim()) {
-                state.onCheck?.();
-              }
-            }}
           />
           {state.isSubmitted && (
             <VerdictBox status={is2Correct ? 'correct' : 'wrong'}>

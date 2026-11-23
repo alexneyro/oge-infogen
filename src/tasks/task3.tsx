@@ -1649,14 +1649,13 @@ export const task3: TaskModule = {
             label="Ваш ответ:"
             value={state.userAnswer}
             onChange={(val) => state.setUserAnswer(val)}
+            onEnter={() => {
+              if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+              state.onCheck();
+            }}
             disabled={state.isSubmitted}
             mono
             placeholder="Введите целое число…"
-            onEnter={() => {
-              if (!state.isSubmitted && !state.isCheckDisabled) {
-                state.onCheck?.();
-              }
-            }}
           />
         )}
 

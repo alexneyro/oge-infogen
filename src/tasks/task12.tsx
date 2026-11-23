@@ -545,13 +545,12 @@ const Task12View: React.FC<Task12ViewProps> = ({ taskData, state }) => {
         label="Ответ (целое число — количество файлов):"
         value={state.userAnswer}
         onChange={(val) => state.setUserAnswer(val)}
+        onEnter={() => {
+          if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+          state.onCheck();
+        }}
         disabled={state.isSubmitted}
         placeholder="Например: 14"
-        onEnter={() => {
-          if (!state.isSubmitted && !state.isCheckDisabled) {
-            state.onCheck?.();
-          }
-        }}
       />
 
       {state.isSubmitted && (

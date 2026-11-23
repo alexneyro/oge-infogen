@@ -34,9 +34,9 @@ const renderTextWithSubscripts = (text: string): React.ReactNode => {
       const num = match[1];
       const base = match[2];
       parts.push(
-        <span key={`${matchIndex}-${num}`} className="inline-flex items-baseline font-bold text-slate-900 dark:text-slate-100">
+        <span key={`${matchIndex}-${num}`} className="inline-flex items-baseline font-bold">
           <span>{num}</span>
-          <sub className="ml-px text-slate-600 dark:text-slate-350 font-bold" style={{ verticalAlign: 'sub', fontSize: '70%', lineHeight: '0' }}>{base}</sub>
+          <sub className="ml-px font-bold" style={{ verticalAlign: 'sub', fontSize: '70%', lineHeight: '0' }}>{base}</sub>
         </span>
       );
     } else if (match[3] !== undefined) {
@@ -721,13 +721,12 @@ export const task1: TaskModule = {
           label="Ваш ответ:"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           placeholder={/^\d+$/.test(taskData.correctAnswer) ? "Введите число…" : "Введите слово…"}
-          onEnter={() => {
-            if (!state.isSubmitted && !state.isCheckDisabled) {
-              state.onCheck?.();
-            }
-          }}
         />
 
         {/* Verification Result Feedback Overlay */}

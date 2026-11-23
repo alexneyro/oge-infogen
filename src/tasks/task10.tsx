@@ -647,9 +647,9 @@ const renderTextWithSubscripts = (text: string): React.ReactNode => {
       const num = match[1];
       const base = match[2];
       parts.push(
-        <span key={`${matchIndex}-${num}`} className="inline-flex items-baseline font-bold text-slate-900 dark:text-slate-100">
+        <span key={`${matchIndex}-${num}`} className="inline-flex items-baseline font-bold">
           <span>{num}</span>
-          <sub className="ml-px text-slate-600 dark:text-slate-350 font-bold" style={{ verticalAlign: 'sub', fontSize: '70%', lineHeight: '0' }}>{base}</sub>
+          <sub className="ml-px font-bold" style={{ verticalAlign: 'sub', fontSize: '70%', lineHeight: '0' }}>{base}</sub>
         </span>
       );
     } else if (match[3] !== undefined) {
@@ -698,7 +698,7 @@ const generateAnyToAnyTranslation = (rng?: RNG) => {
   } else if (toBase === 10) {
     shortHint = `Чтобы перевести число ${fromStr} из системы счисления с основанием ${fromBase} в десятичную, разложите его по степеням основания ${fromBase}. Пронумеруйте разряды числа ${fromStr} справа налево (начиная с 0), умножьте каждую цифру на ${fromBase} в соответствующей степени и сложите полученные результаты.`;
   } else {
-    shortHint = `Для перевода числа ${fromStr} из системы с основанием ${fromBase} в систему с основанием ${toBase}, сначала переведите его в десятичную систему счисления (разложив по степеням основания ${fromBase}), а затем полученное десятичное число переведите в целевую систему с основанием ${toBase}, последовательно деля его на ${toBase} с остатком.`;
+    shortHint = `Для перевода числа ${fromStr} из системы счисления с основанием ${fromBase} в систему с основанием ${toBase}, сначала переведите его в десятичную систему счисления (разложив по степеням основания ${fromBase}), а затем полученное десятичное число переведите в целевую систему с основанием ${toBase}, последовательно деля его на ${toBase} с остатком.`;
   }
 
   const getDivisionDetails = (val: number, base: number): string => {
@@ -887,13 +887,12 @@ export const task10: TaskModule = {
           label="Ваш ответ:"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           placeholder="Введите число…"
-          onEnter={() => {
-            if (!state.isSubmitted && !state.isCheckDisabled) {
-              state.onCheck?.();
-            }
-          }}
         />
 
         {/* Verification Result Feedback Overlay */}

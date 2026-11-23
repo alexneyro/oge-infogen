@@ -1124,6 +1124,10 @@ export const Task5Renderer: React.FC<{ taskData: Task5Data; state: TaskModuleSta
         label="Ваш ответ:"
         value={state.userAnswer}
         onChange={(val) => state.setUserAnswer(val)}
+        onEnter={() => {
+          if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+          state.onCheck();
+        }}
         disabled={state.isSubmitted}
         mono
         placeholder={
@@ -1135,11 +1139,6 @@ export const Task5Renderer: React.FC<{ taskData: Task5Data; state: TaskModuleSta
             ? 'Введите количество'
             : 'Номер команды'
         }
-        onEnter={() => {
-          if (!state.isSubmitted && !state.isCheckDisabled) {
-            state.onCheck?.();
-          }
-        }}
       />
 
       {/* Guiding Hint BEFORE submission */}

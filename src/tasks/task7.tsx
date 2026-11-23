@@ -679,15 +679,14 @@ export const task7: TaskModule = {
           label={`Ваш ответ (последовательность ${unitText}):`}
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           placeholder={examplePlaceholder}
           mono={true}
           maxWidth="xs"
-          onEnter={() => {
-            if (!state.isSubmitted && !state.isCheckDisabled) {
-              state.onCheck?.();
-            }
-          }}
         />
 
         {/* Feedback Overlay */}

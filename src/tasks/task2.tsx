@@ -1273,6 +1273,10 @@ export const task2: TaskModule = {
           }
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           mono
           placeholder={
@@ -1286,11 +1290,6 @@ export const task2: TaskModule = {
               ? 'Например: LOVE'
               : 'Например: ВАЛЯ'
           }
-          onEnter={() => {
-            if (!state.isSubmitted && !state.isCheckDisabled) {
-              state.onCheck?.();
-            }
-          }}
         />
 
         {/* Short Hint */}

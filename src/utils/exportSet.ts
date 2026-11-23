@@ -26,7 +26,10 @@ export function generateNotepadContent(entries: SetEntry[], cfg: SetConfig): str
   ];
 
   for (const entry of entries) {
-    if (entry.taskId === 14) {
+    if (entry.taskId === 13) {
+      lines.push(`# задание 13 — если выполнено, замените "не сделал" на "сделал"`);
+      lines.push(`${entry.position}: не сделал`);
+    } else if (entry.taskId === 14) {
       lines.push(`${entry.position}.1: `);
       lines.push(`${entry.position}.2: `);
       lines.push(`# ${entry.position}.3 (диаграмма) проверяет учитель`);
@@ -36,9 +39,6 @@ export function generateNotepadContent(entries: SetEntry[], cfg: SetConfig): str
       lines.push('--- начало программы ---');
       lines.push('');
       lines.push('--- конец программы ---');
-    } else if (entry.taskId === 13) {
-      lines.push(`# задание 13 — если выполнено, замените "не сделал" на "сделал"`);
-      lines.push(`${entry.position}: не сделал`);
     } else if (entry.taskId === 16) {
       lines.push(`# задание 16, язык Python`);
       lines.push(`${entry.position}:`);
@@ -114,6 +114,7 @@ export async function buildSetZipBlob(
     return `поз. ${entry.position} — задание ${entry.taskId} (уровень ${entry.difficulty})${filePart}`;
   });
 
+  const hasTask13 = entries.some((e) => e.taskId === 13);
   const hasTask14 = entries.some((e) => e.taskId === 14);
   const hasTask15 = entries.some((e) => e.taskId === 15);
   const hasTask16 = entries.some((e) => e.taskId === 16);
@@ -122,6 +123,12 @@ export async function buildSetZipBlob(
     `1. Печать: задания набора можно распечатать через генератор, указав короткий код ${shortCode}.`,
     `2. Ответы: в папке «ответы» находится файл «Фамилия_${fCode}.txt» для внесения ответов учащимися.`,
   ];
+
+  if (hasTask13) {
+    instructions.push(
+      '• Задание 13 (Форматирование документа / презентация): если задание выполнено, ученик пишет «сделал» в строке блокнота, а учитель проверяет работу вручную через генератор.'
+    );
+  }
 
   if (hasTask14) {
     instructions.push(
@@ -140,13 +147,6 @@ export async function buildSetZipBlob(
   } else if (hasTask16) {
     instructions.push(
       '4. Практическое задание 16 (Python): решение можно вставить в блок блокнота («--- начало программы ---») или сохранить в файл-заготовку «_программа.py».'
-    );
-  }
-
-  const hasTask13 = entries.some((e) => e.taskId === 13);
-  if (hasTask13) {
-    instructions.push(
-      `${instructions.length + 1}. Задание 13 (Текстовый редактор): если задание выполнено, ученик должен написать "сделал" в строке блокнота. Учитель проверяет работу вручную через генератор.`
     );
   }
 

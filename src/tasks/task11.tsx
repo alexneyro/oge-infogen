@@ -1189,13 +1189,12 @@ const Task11View: React.FC<Task11ViewProps> = ({ taskData, state }) => {
         label="Ответ (одно слово — имя или фамилия героя):"
         value={state.userAnswer}
         onChange={(val) => state.setUserAnswer(val)}
+        onEnter={() => {
+          if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+          state.onCheck();
+        }}
         disabled={state.isSubmitted}
         placeholder="Например: Очумелов или Гринев"
-        onEnter={() => {
-          if (!state.isSubmitted && !state.isCheckDisabled) {
-            state.onCheck?.();
-          }
-        }}
       />
 
       {state.isSubmitted && (

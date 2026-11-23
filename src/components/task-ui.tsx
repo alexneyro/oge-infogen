@@ -200,68 +200,69 @@ export interface AnswerFieldProps {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onEnter?: () => void;
   placeholder?: string;
   mono?: boolean;
   maxWidth?: 'xs' | 'sm' | 'md';
   className?: string;
   disabled?: boolean;
   autoFocus?: boolean;
-  onEnter?: () => void;
-  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }
 
-export const AnswerField = React.forwardRef<HTMLInputElement, AnswerFieldProps>(function AnswerField(
-  {
-    label,
-    value,
-    onChange,
-    placeholder,
-    mono = false,
-    maxWidth = 'md',
-    className = '',
-    disabled = false,
-    autoFocus = false,
-    onEnter,
-    onKeyDown,
-  },
-  ref
-) {
-  const maxWClass =
-    maxWidth === 'xs' ? 'max-w-xs' : maxWidth === 'sm' ? 'max-w-sm' : 'max-w-md';
+export const AnswerField = React.forwardRef<HTMLInputElement, AnswerFieldProps>(
+  function AnswerField(
+    {
+      label,
+      value,
+      onChange,
+      onKeyDown,
+      onEnter,
+      placeholder,
+      mono = false,
+      maxWidth = 'md',
+      className = '',
+      disabled = false,
+      autoFocus = false,
+    },
+    ref
+  ) {
+    const maxWClass =
+      maxWidth === 'xs' ? 'max-w-xs' : maxWidth === 'sm' ? 'max-w-sm' : 'max-w-md';
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    onKeyDown?.(e);
-    if (e.defaultPrevented || disabled) return;
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      onEnter?.();
-    }
-  };
+    const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+      onKeyDown?.(e);
+      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.defaultPrevented && onEnter) {
+        e.preventDefault();
+        onEnter();
+      }
+    };
 
-  return (
-    <div className={`space-y-2 ${className}`}>
-      <div className="no-print">
-        <label className="block text-sm font-semibold text-theme-text">{label}</label>
-        <input
-          ref={ref}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          autoFocus={autoFocus}
-          className={`w-full ${maxWClass} px-4 py-2.5 text-sm rounded-xl border border-theme-border bg-theme-input-bg text-theme-input-text shadow-inner font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none ${
-            mono ? 'font-mono' : ''
-          }`}
-        />
+    return (
+      <div className={`space-y-2 ${className}`}>
+        <div className="no-print">
+          <label className="block text-sm font-semibold text-theme-text">{label}</label>
+          <input
+            ref={ref}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            className={`w-full ${maxWClass} px-4 py-2.5 text-sm rounded-xl border border-theme-border bg-theme-input-bg text-theme-input-text shadow-inner font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none ${
+              mono ? 'font-mono' : ''
+            }`}
+          />
+        </div>
+        <div className="print-only text-sm font-semibold pt-1">
+          Ответ: ____________________________________
+        </div>
       </div>
-      <div className="print-only text-sm font-semibold pt-1">
-        Ответ: ____________________________________
-      </div>
-    </div>
-  );
-});
+    );
+  }
+);
 
 export interface HintBoxProps {
   children: React.ReactNode;

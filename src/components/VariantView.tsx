@@ -95,6 +95,7 @@ export interface VariantInfo {
 
 interface VariantViewProps {
   onVariantInfoChange?: (info: VariantInfo) => void;
+  onFinish?: (result: { score: number; maxScore: number; seed: string | null; timeSpentSeconds: number; answers: Record<string, unknown> }) => void;
 }
 
 interface PerTaskState {
@@ -246,7 +247,7 @@ export function loadSavedVariantState(): {
   return null;
 }
 
-export function VariantView({ onVariantInfoChange }: VariantViewProps) {
+export function VariantView({ onVariantInfoChange, onFinish }: VariantViewProps) {
   const savedVariant = useMemo(() => loadSavedVariantState(), []);
 
   // Configured difficulties for each of the 16 tasks (default L1 or from saved variant)
@@ -595,6 +596,38 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
       grade,
       difficulty: dominantDifficulty,
     });
+
+    if (onFinish) {
+      const answersMap: Record<string, unknown> = {};
+      variantTasks?.forEach((task, idx) => {
+        const ans = taskStates[idx]?.userAnswer ?? '';
+        const taskMod = getTaskById(task.taskId);
+        let score = 0;
+        let maxScore = (task as any).maxPoints ?? taskMod?.maxPoints ?? 1;
+        if (typeof (OGE_TASKS[idx] as any)?.checkScore === 'function') {
+          const result = (OGE_TASKS[idx] as any).checkScore(task.taskData, ans);
+          score = result.score;
+          maxScore = result.maxScore;
+        } else {
+          const isCorrect = taskMod ? taskMod.check(task.taskData, ans) : false;
+          score = isCorrect ? maxScore : 0;
+        }
+        answersMap[String(idx + 1)] = {
+          answer: ans,
+          correct: score > 0,
+          score,
+          maxScore,
+          taskId: task.taskId,
+        };
+      });
+      onFinish({
+        score: totalEarnedPoints,
+        maxScore: TOTAL_MAX_POINTS,
+        seed: currentCode,
+        timeSpentSeconds: EXAM_DURATION_SECONDS - timeRemaining,
+        answers: answersMap,
+      });
+    }
   };
 
   const toggleTaskExpand = (idx: number) => {
@@ -1007,7 +1040,9 @@ export function VariantView({ onVariantInfoChange }: VariantViewProps) {
                               {(() => {
                                 const displayUser = getDisplayUserAnswer(instance.taskId, st.userAnswer);
                                 if (displayUser === null) {
-                                  return <span className="text-theme-text-muted font-normal italic">нет ответа</span>;
+                                  return (
+                                    <span className="text-theme-text-muted font-normal italic">нет ответа</span>
+                                  );
                                 }
                                 if (instance.taskId === 16) {
                                   const lines = displayUser.split('\n');

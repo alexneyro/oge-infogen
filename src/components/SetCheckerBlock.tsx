@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Upload,
   FileText,
@@ -14,8 +14,9 @@ import {
   Loader2,
   ChevronDown,
   Download,
+  Search,
+  UserCheck,
 } from 'lucide-react';
-import { parseTask13Answer, defaultEmptyPasted } from '../tasks/task13';
 import { checkTask13 } from '../tasks/task13/check';
 import { DEFAULT_SPEC } from '../tasks/task13/spec';
 import { parsePastedHtml } from '../tasks/task13/html';
@@ -35,6 +36,10 @@ import {
 } from '../utils/checkAnswers';
 import { gradeFromScore } from '../utils/scoring';
 import { track } from '../utils/analytics';
+import { supabase } from '../lib/supabase';
+import { useClasses, ClassMemberWithProfile } from '../hooks/useClasses';
+import { findStudentMatches } from '../utils/matchStudent';
+import { compareClassNames } from '../utils/compareClassNames';
 
 export interface SetCheckerBlockProps {
   entries: SetEntry[];
@@ -50,6 +55,12 @@ interface StudentSubmission {
   notes: string[];
   unreadLines: string[];
   attachedProgramFiles?: Record<number, string>;
+  resolvedCode?: string;
+  attached?: {
+    studentId: string;
+    studentName: string;
+    className: string;
+  };
 }
 
 const CHECKER_STORAGE_KEY = 'oge-checker-state-v1';
@@ -62,7 +73,144 @@ function loadCheckerState(): { submissions: StudentSubmission[]; activeSubId: st
     const data = JSON.parse(raw);
     if (data && Array.isArray(data.submissions)) return data;
     return null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
+}
+
+interface SearchableOption {
+  value: string;
+  label: string;
+}
+
+interface SearchableSelectProps {
+  label: string;
+  value: string;
+  options: SearchableOption[];
+  placeholder: string;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}
+
+function SearchableSelect({
+  label,
+  value,
+  options,
+  placeholder,
+  searchPlaceholder = 'Поиск...',
+  emptyText = 'Ничего не найдено',
+  disabled = false,
+  onChange,
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [open]);
+
+  const selectedOption = options.find((o) => o.value === value) || null;
+  const filteredOptions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-[11px] font-bold text-theme-text-muted uppercase tracking-wider mb-1">
+        {label}
+      </label>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((prev) => {
+            if (!prev) setQuery('');
+            return !prev;
+          });
+        }}
+        className="w-full px-3 py-2 rounded-xl border border-theme-border bg-theme-bg text-xs text-left flex items-center justify-between gap-2 text-theme-text hover:border-blue-500/60 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      >
+        <span className={`truncate ${selectedOption ? 'font-medium text-theme-text' : 'text-theme-text-muted'}`}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-theme-text-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-30 mt-1 w-full rounded-xl border border-theme-border bg-theme-card shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-theme-border flex items-center gap-1.5 bg-theme-bg/60">
+            <Search className="h-3.5 w-3.5 text-theme-text-muted shrink-0" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              autoFocus
+              className="w-full bg-transparent text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto divide-y divide-theme-border/40">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2.5 text-xs text-theme-text-muted text-center">
+                {emptyText}
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                      setQuery('');
+                    }}
+                    className={`w-full px-3 py-2 text-xs text-left flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-bold'
+                        : 'text-theme-text hover:bg-theme-bg'
+                    }`}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getStudentFullName(member: ClassMemberWithProfile): string {
+  const full = [member.profiles?.last_name, member.profiles?.first_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return full || member.profiles?.email || 'Ученик';
+}
+
+function getStudentShortName(member: ClassMemberWithProfile): string {
+  const last = member.profiles?.last_name?.trim() || '';
+  const first = member.profiles?.first_name?.trim() || '';
+  if (last && first) return `${last} ${first.charAt(0)}.`;
+  return last || first || member.profiles?.email || 'Ученик';
 }
 
 const GRADE_LABELS: Record<number, string> = {
@@ -98,25 +246,104 @@ function resolveEntries(
 export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetCheckerBlockProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
   const [pastedText, setPastedText] = useState<string>('');
-  const saved = React.useMemo(() => loadCheckerState(), []);
+  const saved = useMemo(() => loadCheckerState(), []);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>(saved?.submissions ?? []);
   const [activeSubId, setActiveSubId] = useState<string | null>(saved?.activeSubId ?? null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [isDragOver, setIsDragOver] = React.useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     try {
       if (typeof sessionStorage === 'undefined') return;
       sessionStorage.setItem(CHECKER_STORAGE_KEY, JSON.stringify({ submissions, activeSubId }));
-    } catch { /* ignore */ }
+    } catch {
+      // ignore storage errors
+    }
   }, [submissions, activeSubId]);
+
+  const { classes, loading: classesLoading } = useClasses();
+  const [selectionBySubId, setSelectionBySubId] = useState<
+    Record<string, { classId: string; studentId: string; touched?: boolean }>
+  >({});
+  const [showAttachModal, setShowAttachModal] = useState<boolean>(false);
+  const [isAttaching, setIsAttaching] = useState<boolean>(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+
+  const sortedClasses = useMemo(() => {
+    return [...classes]
+      .sort((a, b) => compareClassNames(a.name, b.name))
+      .map((cls) => ({
+        ...cls,
+        members: [...cls.members].sort((a, b) => {
+          const lastA = (a.profiles?.last_name || '').trim();
+          const lastB = (b.profiles?.last_name || '').trim();
+          const cmpLast = lastA.localeCompare(lastB, 'ru');
+          if (cmpLast !== 0) return cmpLast;
+          const firstA = (a.profiles?.first_name || '').trim();
+          const firstB = (b.profiles?.first_name || '').trim();
+          return firstA.localeCompare(firstB, 'ru');
+        }),
+      }));
+  }, [classes]);
+
+  useEffect(() => {
+    if (submissions.length === 0 || sortedClasses.length === 0) return;
+
+    setSelectionBySubId((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const sub of submissions) {
+        if (sub.attached || prev[sub.id]?.touched) continue;
+        const matches = findStudentMatches(sub.parsed.student, sub.parsed.grade, sortedClasses);
+        if (matches.length === 1) {
+          const existing = prev[sub.id];
+          if (
+            !existing ||
+            existing.classId !== matches[0].classId ||
+            existing.studentId !== matches[0].studentId
+          ) {
+            next[sub.id] = {
+              classId: matches[0].classId,
+              studentId: matches[0].studentId,
+            };
+            changed = true;
+          }
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [submissions, sortedClasses]);
 
   const activeSubmission = submissions.find((s) => s.id === activeSubId) || submissions[0] || null;
 
   const activeSubmissionEntries = useMemo(() => {
-    if (!activeSubmission) return entries;
+    if (!activeSubmission) return [];
     return resolveEntries(activeSubmission.parsed, currentSetCode, entries).entries;
   }, [activeSubmission?.id, activeSubmission?.parsed.setCode, currentSetCode, entries]);
+  const activeSelection = activeSubmission
+    ? selectionBySubId[activeSubmission.id] || { classId: '', studentId: '' }
+    : { classId: '', studentId: '' };
+  const selectedClass = sortedClasses.find((c) => c.id === activeSelection.classId) || null;
+  const selectedStudentMember =
+    selectedClass?.members.find((m) => m.student_id === activeSelection.studentId) || null;
+
+  const classOptions = useMemo<SearchableOption[]>(
+    () => sortedClasses.map((c) => ({ value: c.id, label: c.name })),
+    [sortedClasses]
+  );
+
+  const studentOptions = useMemo<SearchableOption[]>(
+    () =>
+      selectedClass
+        ? selectedClass.members.map((m) => ({
+            value: m.student_id,
+            label: getStudentFullName(m),
+          }))
+        : [],
+    [selectedClass]
+  );
 
   const handleExportExcel = async () => {
     const { utils, writeFile } = await import('xlsx');
@@ -141,7 +368,9 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
       const max = sub.rows.reduce((sum, r) => sum + r.maxScore, 0);
       const grade = gradeFromScore(total, max);
       const scoreByPos: Record<number, number> = {};
-      sub.rows.forEach((r) => { scoreByPos[r.position] = r.score; });
+      sub.rows.forEach((r) => {
+        scoreByPos[r.position] = r.score;
+      });
       return [
         sub.parsed.student || sub.fileName,
         sub.parsed.grade || '—',
@@ -272,6 +501,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
         notes: checkResult.notes,
         unreadLines: parsed.unreadLines,
         attachedProgramFiles,
+        resolvedCode,
       });
     }
 
@@ -307,6 +537,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
       rows: checkResult.rows,
       notes: checkResult.notes,
       unreadLines: parsed.unreadLines,
+      resolvedCode,
     };
 
     setSubmissions((prev) => [sub, ...prev]);
@@ -508,6 +739,106 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
   const activeGrade = gradeFromScore(activeTotalScore, activeMaxScore);
   const activeGradeLabel = GRADE_LABELS[activeGrade] ?? '';
 
+  const hasUngradedManual = activeSubmission
+    ? activeSubmission.rows.some((r) => r.status === 'manual' && r.score === 0)
+    : false;
+
+  const handleConfirmAttach = async () => {
+    if (
+      !activeSubmission ||
+      !selectedClass ||
+      !selectedStudentMember ||
+      activeSubmission.attached ||
+      isAttaching
+    ) {
+      return;
+    }
+
+    const targetSubId = activeSubmission.id;
+    const studentId = selectedStudentMember.student_id;
+    const classId = selectedClass.id;
+    const studentShortName = getStudentShortName(selectedStudentMember);
+    const className = selectedClass.name;
+
+    const answers: Record<
+      number,
+      {
+        answer: string;
+        correct: boolean;
+        score: number;
+        maxScore: number;
+        taskId: number;
+      }
+    > = {};
+
+    for (const row of activeSubmission.rows) {
+      answers[row.position] = {
+        answer: row.raw,
+        correct: row.score > 0,
+        score: row.score,
+        maxScore: row.maxScore,
+        taskId: row.taskId,
+      };
+    }
+
+    setIsAttaching(true);
+    setAttachError(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('attach-mock-result', {
+        body: {
+          studentId,
+          classId,
+          setCode: activeSubmission.resolvedCode ?? currentSetCode,
+          score: activeTotalScore,
+          maxScore: activeMaxScore,
+          notebookStudent: activeSubmission.parsed.student,
+          notebookGrade: activeSubmission.parsed.grade,
+          answers,
+        },
+      });
+
+      if (error) {
+        let errMsg = error.message || 'Не удалось прикрепить результат';
+        try {
+          const ctx = (error as { context?: { json?: () => Promise<{ error?: string }> } }).context;
+          if (ctx && typeof ctx.json === 'function') {
+            const errBody = await ctx.json();
+            if (errBody?.error) errMsg = errBody.error;
+          }
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(errMsg);
+      }
+
+      if (!data?.ok) {
+        throw new Error(data?.error || 'Не удалось прикрепить результат');
+      }
+
+      setSubmissions((prev) =>
+        prev.map((sub) =>
+          sub.id === targetSubId
+            ? {
+                ...sub,
+                attached: {
+                  studentId,
+                  studentName: studentShortName,
+                  className,
+                },
+              }
+            : sub
+        )
+      );
+      setShowAttachModal(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Ошибка при прикреплении результата';
+      setAttachError(msg);
+    } finally {
+      setIsAttaching(false);
+    }
+  };
+
   // Фактические границы отметок для текущего набора (определяются перебором)
   const gradeThresholds = useMemo(() => {
     if (activeMaxScore <= 0) return { min3: null, min4: null, min5: null };
@@ -523,15 +854,25 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
     return { min3, min4, min5 };
   }, [activeMaxScore]);
 
-  const [task13Inputs, setTask13Inputs] = React.useState<Record<string, string>>({});
-  const [task13Parsed, setTask13Parsed] = React.useState<Record<string, any>>({});
-  const [task13Reports, setTask13Reports] = React.useState<Record<string, { score: number; items: { id: string; label: string; status: string; expected: string; actual: string }[] }>>({});
-  const [task13Open, setTask13Open] = React.useState<Record<string, boolean>>({});
-  const [task14Open, setTask14Open] = React.useState<Record<string, boolean>>({});
-  const [testsOpen, setTestsOpen] = React.useState<Record<string, boolean>>({});
+  const [task13Inputs, setTask13Inputs] = useState<Record<string, string>>({});
+  const [task13Parsed, setTask13Parsed] = useState<Record<string, any>>({});
+  const [task13Reports, setTask13Reports] = useState<
+    Record<
+      string,
+      { score: number; items: { id: string; label: string; status: string; expected: string; actual: string }[] }
+    >
+  >({});
+  const [task13Open, setTask13Open] = useState<Record<string, boolean>>({});
+  const [task14Open, setTask14Open] = useState<Record<string, boolean>>({});
+  const [testsOpen, setTestsOpen] = useState<Record<string, boolean>>({});
 
-  const handleCheck13 = (subId: string, position: number, taskData: unknown, html: string) => {
-    const rowKey = `${subId}-${position}`;
+  const handleCheck13 = (
+    submissionId: string,
+    position: number,
+    taskData: unknown,
+    html: string
+  ) => {
+    const rowKey = `${submissionId}-${position}`;
     try {
       const parsed = task13Parsed[rowKey] || parsePastedHtml(html);
       const report = checkTask13(
@@ -539,22 +880,24 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
         parsed,
         (taskData as any).doc?.spec || DEFAULT_SPEC
       );
-      setTask13Reports(prev => ({
+      setTask13Reports((prev) => ({
         ...prev,
-        [rowKey]: { score: report.score, items: report.items }
+        [rowKey]: { score: report.score, items: report.items },
       }));
-      setSubmissions(prev => prev.map(sub =>
-        sub.id === subId
-          ? {
-              ...sub,
-              rows: sub.rows.map(r =>
-                r.position === position && r.taskId === 13
-                  ? { ...r, score: report.score, status: report.score > 0 ? 'correct' : 'wrong' }
-                  : r
-              )
-            }
-          : sub
-      ));
+      setSubmissions((prev) =>
+        prev.map((sub) =>
+          sub.id !== submissionId
+            ? sub
+            : {
+                ...sub,
+                rows: sub.rows.map((r) =>
+                  r.position === position && r.taskId === 13
+                    ? { ...r, score: report.score, status: report.score > 0 ? 'correct' : 'wrong' }
+                    : r
+                ),
+              }
+        )
+      );
     } catch (e) {
       console.error('task13 check error', e);
     }
@@ -605,15 +948,23 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
       {/* Форма ввода (Загрузка или Текст) */}
       {activeTab === 'upload' ? (
         <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+          }}
           onDrop={(e) => {
             e.preventDefault();
             setIsDragOver(false);
             const files = e.dataTransfer.files;
             if (files.length > 0) handleFileUpload(files);
           }}
-          className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors bg-theme-bg/50 ${isDragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-theme-border hover:border-blue-500'}`}
+          className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors bg-theme-bg/50 ${
+            isDragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-theme-border hover:border-blue-500'
+          }`}
         >
           <input
             type="file"
@@ -678,6 +1029,9 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                     onClick={() => {
                       setSubmissions([]);
                       setActiveSubId(null);
+                      setSelectionBySubId({});
+                      setAttachError(null);
+                      setShowAttachModal(false);
                     }}
                     className="text-[11px] text-rose-600 hover:underline flex items-center space-x-1 cursor-pointer"
                   >
@@ -704,16 +1058,26 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                   return (
                     <div
                       key={sub.id}
-                      onClick={() => setActiveSubId(sub.id)}
+                      onClick={() => {
+                        setActiveSubId(sub.id);
+                        setAttachError(null);
+                        setShowAttachModal(false);
+                      }}
                       className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
                         isActive
                           ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700 shadow-xs'
                           : 'bg-theme-bg/40 border-theme-border hover:bg-theme-bg'
                       }`}
                     >
-                      <div className="truncate pr-2">
-                        <div className="font-bold text-theme-text truncate">
-                          {sub.parsed.student || sub.fileName}
+                      <div className="truncate pr-2 min-w-0">
+                        <div className="font-bold text-theme-text truncate flex items-center gap-1.5">
+                          {sub.attached && (
+                            <CheckCircle
+                              className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0"
+                              aria-label={`Прикреплено: ${sub.attached.studentName} (${sub.attached.className})`}
+                            />
+                          )}
+                          <span className="truncate">{sub.parsed.student || sub.fileName}</span>
                         </div>
                         <div className="text-[11px] text-theme-text-muted flex items-center space-x-1.5">
                           <span>{sub.parsed.grade || 'Класс не указан'}</span>
@@ -727,7 +1091,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                       <button
                         type="button"
                         onClick={(e) => handleRemoveSubmission(sub.id, e)}
-                        className="text-theme-text-muted hover:text-rose-600 p-1 rounded-lg"
+                        className="text-theme-text-muted hover:text-rose-600 p-1 rounded-lg shrink-0"
                         title="Удалить работу"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -812,6 +1176,105 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                     ].filter(Boolean).join(', ')}. На коротких наборах одна ошибка сильнее влияет на отметку, чем на полном варианте.
                   </p>
                 )}
+
+                {/* Блок привязки результата к ученику (Пробник) */}
+                <div className="bg-theme-bg p-4 rounded-2xl border border-theme-border space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-theme-text">
+                        Привязка к ученику
+                      </h5>
+                    </div>
+                    <span className="text-xs text-theme-text-muted">
+                      Из блокнота:{' '}
+                      <span className="font-medium text-theme-text">
+                        {activeSubmission.parsed.student || '—'}, {activeSubmission.parsed.grade || '—'}
+                      </span>
+                    </span>
+                  </div>
+
+                  {activeSubmission.attached ? (
+                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-bold flex items-center space-x-2">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>
+                        Прикреплено: {activeSubmission.attached.studentName} ({activeSubmission.attached.className})
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <SearchableSelect
+                          label="Класс"
+                          value={activeSelection.classId}
+                          options={classOptions}
+                          placeholder={classesLoading ? 'Загрузка классов...' : 'Выберите класс'}
+                          searchPlaceholder="Поиск класса..."
+                          emptyText="Классы не найдены"
+                          disabled={classesLoading || sortedClasses.length === 0 || isAttaching}
+                          onChange={(newClassId) => {
+                            setSelectionBySubId((prev) => ({
+                              ...prev,
+                              [activeSubmission.id]: {
+                                classId: newClassId,
+                                studentId: '',
+                                touched: true,
+                              },
+                            }));
+                            setAttachError(null);
+                          }}
+                        />
+
+                        <SearchableSelect
+                          label="Ученик"
+                          value={activeSelection.studentId}
+                          options={studentOptions}
+                          placeholder={selectedClass ? 'Выберите ученика' : 'Сначала выберите класс'}
+                          searchPlaceholder="Поиск ученика..."
+                          emptyText="Ученики не найдены"
+                          disabled={!selectedClass || isAttaching}
+                          onChange={(newStudentId) => {
+                            setSelectionBySubId((prev) => ({
+                              ...prev,
+                              [activeSubmission.id]: {
+                                classId: activeSelection.classId,
+                                studentId: newStudentId,
+                                touched: true,
+                              },
+                            }));
+                            setAttachError(null);
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          disabled={!selectedStudentMember || !!activeSubmission.attached || isAttaching}
+                          onClick={() => {
+                            setAttachError(null);
+                            setShowAttachModal(true);
+                          }}
+                          className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center justify-center space-x-1.5 cursor-pointer h-[34px]"
+                        >
+                          <UserCheck className="h-4 w-4" />
+                          <span>Прикрепить к ученику</span>
+                        </button>
+                      </div>
+
+                      {!classesLoading && sortedClasses.length === 0 && (
+                        <p className="text-[11px] text-theme-text-muted">
+                          Нет доступных классов. Войдите как учитель и создайте класс, чтобы прикреплять результаты.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {attachError && !showAttachModal && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center space-x-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{attachError}</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Предупреждения (notes) и нераспознанные строки (unreadLines) */}
                 {(activeSubmission.notes.length > 0 || activeSubmission.unreadLines.length > 0) && (
@@ -926,36 +1389,36 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                         return (
                           <React.Fragment key={`row-group-${row.position}`}>
                             <tr key={`row-${row.position}`} className={`transition-colors ${rowBg}`}>
-                            {/* Позиция */}
-                            <td className="py-2.5 px-3 text-center font-bold font-mono text-theme-text">
-                              {row.position}
-                            </td>
+                              {/* Позиция */}
+                              <td className="py-2.5 px-3 text-center font-bold font-mono text-theme-text">
+                                {row.position}
+                              </td>
 
-                            {/* Задание */}
-                            <td className="py-2.5 px-3">
-                              <div className="font-bold text-theme-text">
-                                ОГЭ {row.taskId}. {taskMod?.title || 'Задание'}
-                              </div>
-                              <div className="text-[10px] text-theme-text-muted">
-                                {`L${row.difficulty} ${DIFFICULTY_LABELS[row.difficulty]}`}
-                              </div>
-                            </td>
+                              {/* Задание */}
+                              <td className="py-2.5 px-3">
+                                <div className="font-bold text-theme-text">
+                                  ОГЭ {row.taskId}. {taskMod?.title || 'Задание'}
+                                </div>
+                                <div className="text-[10px] text-theme-text-muted">
+                                  {`L${row.difficulty} ${DIFFICULTY_LABELS[row.difficulty]}`}
+                                </div>
+                              </td>
 
-                            {/* Ответ ученика */}
-                            <td className="py-2.5 px-3 font-mono">
-                              {row.raw ? (
-                                <span className="text-theme-text font-bold">{row.raw}</span>
-                              ) : (
-                                <span className="text-theme-text-muted italic">нет ответа</span>
-                              )}
-                            </td>
+                              {/* Ответ ученика */}
+                              <td className="py-2.5 px-3 font-mono">
+                                {row.raw ? (
+                                  <span className="text-theme-text font-bold">{row.raw}</span>
+                                ) : (
+                                  <span className="text-theme-text-muted italic">нет ответа</span>
+                                )}
+                              </td>
 
-                            {/* Эталон */}
-                            <td className="py-2.5 px-3 font-mono text-theme-text-muted">
-                              {row.taskId === 16 && row.status === 'manual'
-                                ? 'Запустите проверку программ'
-                                : row.expected}
-                            </td>
+                              {/* Эталон */}
+                              <td className="py-2.5 px-3 font-mono text-theme-text-muted">
+                                {row.taskId === 16 && row.status === 'manual'
+                                  ? 'Запустите проверку программ'
+                                  : row.expected}
+                              </td>
 
                             {/* Статус */}
                             <td className="py-2.5 px-3 text-center">
@@ -1115,10 +1578,10 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                           if (!html) return;
                                           try {
                                             const parsed = parsePastedHtml(html);
-                                            setTask13Inputs(prev => ({ ...prev, [rowKey]: html }));
-                                            setTask13Parsed(prev => ({ ...prev, [rowKey]: parsed }));
+                                            setTask13Inputs((prev) => ({ ...prev, [rowKey]: html }));
+                                            setTask13Parsed((prev) => ({ ...prev, [rowKey]: parsed }));
                                           } catch {
-                                            setTask13Inputs(prev => ({ ...prev, [rowKey]: html }));
+                                            setTask13Inputs((prev) => ({ ...prev, [rowKey]: html }));
                                           }
                                         }}
                                         className={`p-4 border-2 border-dashed rounded-xl transition-colors focus:outline-none min-h-[120px] text-xs ${
@@ -1132,11 +1595,28 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                             <div className="flex justify-between items-center mb-2">
                                               <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">✓ Документ вставлен</span>
                                               <button
+                                                type="button"
                                                 onClick={() => {
-                                                  setTask13Inputs(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                                  setTask13Parsed(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                                  setTask13Reports(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                                  setTask13Open(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                                  setTask13Inputs((prev) => {
+                                                    const n = { ...prev };
+                                                    delete n[rowKey];
+                                                    return n;
+                                                  });
+                                                  setTask13Parsed((prev) => {
+                                                    const n = { ...prev };
+                                                    delete n[rowKey];
+                                                    return n;
+                                                  });
+                                                  setTask13Reports((prev) => {
+                                                    const n = { ...prev };
+                                                    delete n[rowKey];
+                                                    return n;
+                                                  });
+                                                  setTask13Open((prev) => {
+                                                    const n = { ...prev };
+                                                    delete n[rowKey];
+                                                    return n;
+                                                  });
                                                 }}
                                                 className="text-[11px] text-rose-500 hover:underline cursor-pointer"
                                               >
@@ -1147,11 +1627,16 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                               {task13Parsed[rowKey].paragraphs?.map((para: any, pIdx: number) => (
                                                 <p key={pIdx} style={{ fontSize: `${task13Parsed[rowKey].fontSizes?.[pIdx] || 12}pt` }}>
                                                   {para.spans?.map((s: any, sIdx: number) => (
-                                                    <span key={sIdx} style={{
-                                                      fontWeight: s.b ? 'bold' : undefined,
-                                                      fontStyle: s.i ? 'italic' : undefined,
-                                                      textDecoration: s.u ? 'underline' : undefined,
-                                                    }}>{s.text}</span>
+                                                    <span
+                                                      key={sIdx}
+                                                      style={{
+                                                        fontWeight: s.b ? 'bold' : undefined,
+                                                        fontStyle: s.i ? 'italic' : undefined,
+                                                        textDecoration: s.u ? 'underline' : undefined,
+                                                      }}
+                                                    >
+                                                      {s.text}
+                                                    </span>
                                                   ))}
                                                 </p>
                                               ))}
@@ -1167,7 +1652,10 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                     )}
                                     {task13Inputs[rowKey] && !report && (
                                       <button
-                                        onClick={() => handleCheck13(activeSubmission.id, row.position, row.task13Data, task13Inputs[rowKey])}
+                                        type="button"
+                                        onClick={() =>
+                                          handleCheck13(activeSubmission.id, row.position, row.task13Data, task13Inputs[rowKey])
+                                        }
                                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer"
                                       >
                                         Проверить
@@ -1182,10 +1670,26 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              setTask13Inputs(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                              setTask13Parsed(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                              setTask13Reports(prev => { const n = {...prev}; delete n[rowKey]; return n; });
-                                              setTask13Open(prev => { const n = {...prev}; delete n[rowKey]; return n; });
+                                              setTask13Inputs((prev) => {
+                                                const n = { ...prev };
+                                                delete n[rowKey];
+                                                return n;
+                                              });
+                                              setTask13Parsed((prev) => {
+                                                const n = { ...prev };
+                                                delete n[rowKey];
+                                                return n;
+                                              });
+                                              setTask13Reports((prev) => {
+                                                const n = { ...prev };
+                                                delete n[rowKey];
+                                                return n;
+                                              });
+                                              setTask13Open((prev) => {
+                                                const n = { ...prev };
+                                                delete n[rowKey];
+                                                return n;
+                                              });
                                             }}
                                             className="text-[11px] text-rose-500 hover:underline cursor-pointer"
                                           >
@@ -1193,7 +1697,8 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                           </button>
                                         </div>
                                         <button
-                                          onClick={() => setTask13Open(prev => ({ ...prev, [rowKey]: !prev[rowKey] }))}
+                                          type="button"
+                                          onClick={() => setTask13Open((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }))}
                                           className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1"
                                         >
                                           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${task13Open[rowKey] ? 'rotate-180' : ''}`} />
@@ -1202,11 +1707,19 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                         {task13Open[rowKey] && (
                                           <div className="space-y-1 pl-2 border-l-2 border-theme-border">
                                             {report.items.map((item: any) => (
-                                              <div key={item.id} className={`text-[11px] flex items-start space-x-1.5 ${
-                                                item.status === 'ok' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
-                                              }`}>
+                                              <div
+                                                key={item.id}
+                                                className={`text-[11px] flex items-start space-x-1.5 ${
+                                                  item.status === 'ok'
+                                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                                    : 'text-rose-700 dark:text-rose-400'
+                                                }`}
+                                              >
                                                 <span>{item.status === 'ok' ? '✓' : '✗'}</span>
-                                                <span>{item.label}: {item.status !== 'ok' ? `${item.actual} (нужно: ${item.expected})` : item.expected}</span>
+                                                <span>
+                                                  {item.label}:{' '}
+                                                  {item.status !== 'ok' ? `${item.actual} (нужно: ${item.expected})` : item.expected}
+                                                </span>
                                               </div>
                                             ))}
                                           </div>
@@ -1251,7 +1764,9 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                   </div>
                                   {hasChart && task14Open[rowKey14] && (
                                     <div className="mt-3 max-w-sm">
-                                      <p className="text-[11px] text-theme-text-muted mb-2">Сравните с работой ученика и отметьте галочку «Диаграмма верна». Балл можно поправить вручную в поле выше.</p>
+                                      <p className="text-[11px] text-theme-text-muted mb-2">
+                                        Сравните с работой ученика и отметьте галочку «Диаграмма верна». Балл можно поправить вручную в поле выше.
+                                      </p>
                                       <Task14PieChart chartData={chartData} />
                                     </div>
                                   )}
@@ -1267,7 +1782,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                 <td colSpan={6} className="px-4 py-2">
                                   <button
                                     type="button"
-                                    onClick={() => setTestsOpen(prev => ({ ...prev, [rowKeyTests]: !prev[rowKeyTests] }))}
+                                    onClick={() => setTestsOpen((prev) => ({ ...prev, [rowKeyTests]: !prev[rowKeyTests] }))}
                                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1 cursor-pointer"
                                   >
                                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -1306,7 +1821,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                               </tr>
                             );
                           })()}
-                        </React.Fragment>
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -1314,6 +1829,75 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Модалка подтверждения прикрепления к ученику */}
+      {showAttachModal && activeSubmission && selectedClass && selectedStudentMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="bg-theme-card border border-theme-border rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <h4 className="text-base font-bold text-theme-text">
+                Подтверждение привязки
+              </h4>
+              <button
+                type="button"
+                disabled={isAttaching}
+                onClick={() => setShowAttachModal(false)}
+                className="text-theme-text-muted hover:text-theme-text p-1 rounded-lg cursor-pointer"
+                aria-label="Закрыть"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-theme-text leading-relaxed">
+              Прикрепить работу с ФИО из блокнота «{activeSubmission.parsed.student || '—'}» ученику «{getStudentFullName(selectedStudentMember)}» ({selectedClass.name})? Результат: {activeTotalScore}/{activeMaxScore}
+            </p>
+
+            {hasUngradedManual && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-300 flex items-center space-x-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Задания 13/16 ещё не оценены</span>
+              </div>
+            )}
+
+            {attachError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center space-x-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{attachError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isAttaching}
+                onClick={() => setShowAttachModal(false)}
+                className="px-4 py-2 rounded-xl border border-theme-border bg-theme-bg text-xs font-bold text-theme-text hover:bg-theme-border/40 disabled:opacity-50 cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={isAttaching}
+                onClick={handleConfirmAttach}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
+              >
+                {isAttaching ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Сохранение...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Прикрепить</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

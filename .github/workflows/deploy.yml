@@ -40,10 +40,16 @@ jobs:
 
       - name: npm test
         run: npm test
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_YM_ID: ${{ vars.VITE_YM_ID }}
 
       - name: Build project
         run: npm run build
         env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_YM_ID: ${{ vars.VITE_YM_ID }}
 
       - name: Setup Pages
@@ -64,3 +70,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

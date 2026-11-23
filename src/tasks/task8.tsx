@@ -1177,13 +1177,12 @@ export const task8: TaskModule = {
           label="Ваш ответ (в тысячах):"
           value={state.userAnswer}
           onChange={(val) => state.setUserAnswer(val)}
+          onEnter={() => {
+            if (state.isSubmitted || state.isCheckDisabled || !state.onCheck) return;
+            state.onCheck();
+          }}
           disabled={state.isSubmitted}
           placeholder="Введите число…"
-          onEnter={() => {
-            if (!state.isSubmitted && !state.isCheckDisabled) {
-              state.onCheck?.();
-            }
-          }}
         />
 
         {/* Verification Result Feedback Overlay */}

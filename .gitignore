@@ -18,3 +18,6 @@ perf-task9.mjs
 notes.txt
 bun.lock
 0
+
+supabase/
+metadata.json

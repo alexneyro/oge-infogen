@@ -23,7 +23,7 @@ export interface CheckedRow {
   details?: string[];
   testsPassed?: number;
   testsTotal?: number;
-  task13Data?: unknown; // taskData задания 13 для отложенной проверки учителем
+  task13Data?: unknown;
 }
 
 export function getAutoScore14(row: CheckedRow): number {
@@ -357,13 +357,13 @@ export function checkSet(
     // Задание 13: ручная проверка учителем (форматирование документа)
     if (entry.taskId === 13) {
       hasManualTasks = true;
-      const raw = (posAnswers[0]?.raw ?? '').trim().toLowerCase();
-      const isDone = raw === 'сделал';
+      const raw = posAnswers[0]?.raw ?? '';
+      const isDone = raw.trim().toLowerCase() === 'сделал';
       rows.push({
         position: entry.position,
         taskId: entry.taskId,
         difficulty: entry.difficulty,
-        raw: posAnswers[0]?.raw ?? '',
+        raw,
         expected: 'Проверяется учителем по файлу-решению',
         status: isDone ? 'manual' : 'empty',
         score: 0,

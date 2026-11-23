@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({ user: null, profile: null, session: null, loading: false }),
+}));
+
 import { SetBuilderView, SET_STORAGE_KEY, loadSavedSetState, plural } from '../SetBuilderView';
 import { VariantView, VARIANT_STORAGE_KEY, loadSavedVariantState } from '../VariantView';
 import { encodeSetShort, decodeSetShort, buildSet, fileCode } from '../../set';
