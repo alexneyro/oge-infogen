@@ -77,7 +77,7 @@ export const CabinetLayout: React.FC = () => {
   }
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `w-full flex items-center space-x-2.5 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+    `w-full flex items-center space-x-2.5 px-3 py-2.5 text-sm font-semibold transition-colors cursor-pointer ${
       isActive
         ? 'bg-theme-bg rounded-lg text-blue-600 dark:text-blue-400'
         : 'text-theme-text-sec hover:text-theme-text hover:bg-theme-bg/50 rounded-lg'
@@ -89,23 +89,23 @@ export const CabinetLayout: React.FC = () => {
         {profile?.role === 'teacher' && (
           <>
             <NavLink to="/teacher/profile" onClick={onItemClick} className={navLinkClass}>
-              <User className="w-4 h-4 shrink-0" />
+              <User className="w-[18px] h-[18px] shrink-0" />
               <span>Профиль</span>
             </NavLink>
             <NavLink to="/teacher/classes" onClick={onItemClick} className={navLinkClass}>
-              <GraduationCap className="w-4 h-4 shrink-0" />
+              <GraduationCap className="w-[18px] h-[18px] shrink-0" />
               <span>Классы</span>
             </NavLink>
             <NavLink to="/teacher/assignments" onClick={onItemClick} className={navLinkClass}>
-              <ClipboardList className="w-4 h-4 shrink-0" />
+              <ClipboardList className="w-[18px] h-[18px] shrink-0" />
               <span>Задания</span>
             </NavLink>
             <NavLink to="/teacher/stats" onClick={onItemClick} className={navLinkClass}>
-              <BarChart2 className="w-4 h-4 shrink-0" />
+              <BarChart2 className="w-[18px] h-[18px] shrink-0" />
               <span>Моя статистика</span>
             </NavLink>
             <NavLink to="/teacher/history" onClick={onItemClick} className={navLinkClass}>
-              <History className="w-4 h-4 shrink-0" />
+              <History className="w-[18px] h-[18px] shrink-0" />
               <span>История решений</span>
             </NavLink>
           </>
@@ -114,19 +114,19 @@ export const CabinetLayout: React.FC = () => {
         {profile?.role === 'student' && (
           <>
             <NavLink to="/student/profile" onClick={onItemClick} className={navLinkClass}>
-              <User className="w-4 h-4 shrink-0" />
+              <User className="w-[18px] h-[18px] shrink-0" />
               <span>Профиль</span>
             </NavLink>
             <NavLink to="/student/assignments" onClick={onItemClick} className={navLinkClass}>
-              <ClipboardList className="w-4 h-4 shrink-0" />
+              <ClipboardList className="w-[18px] h-[18px] shrink-0" />
               <span>Задания</span>
             </NavLink>
             <NavLink to="/student/stats" onClick={onItemClick} className={navLinkClass}>
-              <BarChart2 className="w-4 h-4 shrink-0" />
+              <BarChart2 className="w-[18px] h-[18px] shrink-0" />
               <span>Статистика</span>
             </NavLink>
             <NavLink to="/student/history" onClick={onItemClick} className={navLinkClass}>
-              <History className="w-4 h-4 shrink-0" />
+              <History className="w-[18px] h-[18px] shrink-0" />
               <span>История</span>
             </NavLink>
           </>
@@ -135,7 +135,7 @@ export const CabinetLayout: React.FC = () => {
 
       <div className="border-t border-theme-border/60 mt-auto pt-4">
         <NavLink to="/" onClick={onItemClick} className={navLinkClass}>
-          <Monitor className="w-4 h-4 shrink-0" />
+          <Monitor className="w-[18px] h-[18px] shrink-0" />
           <span>Тренажёр</span>
         </NavLink>
       </div>
@@ -146,7 +146,7 @@ export const CabinetLayout: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-theme-bg text-theme-text transition-colors">
       {/* Header */}
       <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-theme-card border-b border-theme-border/80 transition-colors shadow-sm no-print">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 lg:h-20 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 lg:h-20 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center">
           {/* Левая зона: бренд и подпись */}
           <button
             type="button"
@@ -189,7 +189,7 @@ export const CabinetLayout: React.FC = () => {
       {/* Body with Sidebar & Main Content */}
       <div className="flex flex-1 min-h-0">
         {/* Desktop Sidebar */}
-        <aside className="hidden md:flex flex-col w-56 flex-shrink-0 h-[calc(100vh-4rem)] lg:h-[calc(100vh-5rem)] sticky top-16 lg:top-20 bg-theme-card border-r border-theme-border p-3">
+        <aside className="hidden md:flex flex-col w-60 flex-shrink-0 h-[calc(100vh-4rem)] lg:h-[calc(100vh-5rem)] sticky top-16 lg:top-20 bg-theme-card border-r border-theme-border p-3">
           {renderNavItems()}
         </aside>
 
