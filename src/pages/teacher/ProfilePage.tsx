@@ -483,31 +483,31 @@ export const TeacherProfilePage: React.FC = () => {
         </div>
 
         <form onSubmit={handleChangePassword} className="mt-3 space-y-3">
-          {/* Текущий пароль */}
-          <div className="relative max-w-md">
-            <input
-              type={showCurrent ? 'text' : 'password'}
-              placeholder="Текущий пароль"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              disabled={pwLoading}
-              className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10 disabled:opacity-60"
-            />
-            <button
-              type="button"
-              onClick={() => setShowCurrent(p => !p)}
-              disabled={pwLoading}
-              aria-label={showCurrent ? 'Скрыть пароль' : 'Показать пароль'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3">
-            {/* Новый пароль */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Текущий пароль */}
             <div className="relative">
+              <input
+                type={showCurrent ? 'text' : 'password'}
+                placeholder="Текущий пароль"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                disabled={pwLoading}
+                className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10 disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrent(p => !p)}
+                disabled={pwLoading}
+                aria-label={showCurrent ? 'Скрыть пароль' : 'Показать пароль'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Новый пароль */}
+            <div className="relative sm:col-start-1">
               <input
                 type={showNew ? 'text' : 'password'}
                 placeholder="Новый пароль"

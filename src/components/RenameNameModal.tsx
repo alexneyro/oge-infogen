@@ -159,6 +159,25 @@ export const RenameNameModal: React.FC<RenameNameModalProps> = ({
         {step === 'edit' ? (
           <form onSubmit={handleContinue} className="space-y-3">
             <div className="space-y-1">
+              <label htmlFor="rename-modal-last-name" className="block text-xs font-medium text-theme-text-muted">
+                Фамилия
+              </label>
+              <input
+                id="rename-modal-last-name"
+                type="text"
+                autoFocus
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (error) setError(null);
+                }}
+                disabled={loading}
+                placeholder="Фамилия"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-theme-bg border border-theme-border text-theme-text placeholder:text-theme-text-muted focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            <div className="space-y-1">
               <label htmlFor="rename-modal-first-name" className="block text-xs font-medium text-theme-text-muted">
                 Имя
               </label>
@@ -172,24 +191,6 @@ export const RenameNameModal: React.FC<RenameNameModalProps> = ({
                 }}
                 disabled={loading}
                 placeholder="Имя"
-                className="w-full px-3 py-2 text-xs rounded-xl bg-theme-bg border border-theme-border text-theme-text placeholder:text-theme-text-muted focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="rename-modal-last-name" className="block text-xs font-medium text-theme-text-muted">
-                Фамилия
-              </label>
-              <input
-                id="rename-modal-last-name"
-                type="text"
-                value={lastName}
-                onChange={(e) => {
-                  setLastName(e.target.value);
-                  if (error) setError(null);
-                }}
-                disabled={loading}
-                placeholder="Фамилия"
                 className="w-full px-3 py-2 text-xs rounded-xl bg-theme-bg border border-theme-border text-theme-text placeholder:text-theme-text-muted focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
