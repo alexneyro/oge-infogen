@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
 
+// Письма ученикам при выдаче задания. Выключены из-за дневного лимита Resend; чтобы включить, поставь true.
+const SEND_ASSIGNMENT_EMAILS = false;
+
 export async function sendEmailNotification(
   to: string,
   subject: string,
@@ -57,6 +60,7 @@ export async function sendNotificationToClass(
     validMembers.map(async (m: { student_id: string }) => {
       await sendNotification(m.student_id, type, payload);
 
+      if (SEND_ASSIGNMENT_EMAILS) {
       try {
         const { data: prof } = await (supabase as any)
           .from('profiles')
@@ -80,6 +84,7 @@ export async function sendNotificationToClass(
         }
       } catch (emailErr) {
         console.error('[sendNotificationToClass] email error:', emailErr);
+      }
       }
     })
   );
