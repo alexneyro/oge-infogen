@@ -303,4 +303,151 @@ describe('useClasses', () => {
     expect(res.credentials?.login).toMatch(/^kim\d{4}$/);
     expect(res.credentials?.password).toMatch(/^Ivan\d{4}$/);
   });
+
+  describe('renameClass', () => {
+    const setupTeacherWithClasses = (
+      initialClasses: Array<{ id: string; name: string; invite_code: string; created_at: string; is_archived: boolean }>,
+      updateResult: { data: any; error: any } = { data: [{ id: 'class-1' }], error: null }
+    ) => {
+      useAuthMock.mockReturnValue({
+        user: { id: 'teacher-1' },
+        profile: { id: 'teacher-1', role: 'teacher' },
+        session: null,
+        loading: false,
+      });
+
+      const selectAfterUpdateMock = vi.fn().mockResolvedValue(updateResult);
+      const eqAfterUpdateMock = vi.fn(() => ({ select: selectAfterUpdateMock }));
+      const updateMock = vi.fn((_payload: { name: string }) => ({ eq: eqAfterUpdateMock }));
+
+      let currentClasses = initialClasses;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'classes') {
+          const builder = {
+            select: () => builder,
+            eq: vi.fn(() => {
+              if ((builder.eq as ReturnType<typeof vi.fn>).mock.calls.length === 2) {
+                return Promise.resolve({ data: currentClasses, error: null });
+              }
+              return builder;
+            }),
+            update: (payload: { name: string }) => {
+              if (!updateResult.error && updateResult.data && updateResult.data.length > 0) {
+                currentClasses = currentClasses.map((c) =>
+                  c.id === 'class-1' ? { ...c, name: payload.name } : c
+                );
+              }
+              return updateMock(payload);
+            },
+          };
+          return builder;
+        }
+        if (table === 'class_members') {
+          return {
+            select: () => ({
+              in: () => Promise.resolve({ data: [], error: null }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      });
+
+      return { updateMock, eqAfterUpdateMock, selectAfterUpdateMock };
+    };
+
+    const sampleClasses = [
+      { id: 'class-1', name: '9А', invite_code: 'AAA111', created_at: '2026-11-17T09:00:00Z', is_archived: false },
+      { id: 'class-2', name: '10Б Информатика', invite_code: 'BBB222', created_at: '2026-11-17T09:00:00Z', is_archived: false },
+    ];
+
+    it('отклоняет пустое название и не обращается к update', async () => {
+      const { updateMock } = setupTeacherWithClasses(sampleClasses);
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', '');
+      });
+      expect(res.error).toBe('Название класса не может быть пустым');
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет название из одних пробелов и не обращается к update', async () => {
+      const { updateMock } = setupTeacherWithClasses(sampleClasses);
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', '   \t  ');
+      });
+      expect(res.error).toBe('Название класса не может быть пустым');
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет название длиннее 40 символов и не обращается к update', async () => {
+      const { updateMock } = setupTeacherWithClasses(sampleClasses);
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', 'А'.repeat(41));
+      });
+      expect(res.error).toBe('Название класса должно быть не длиннее 40 символов');
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет дубликат названия другого класса без учёта регистра', async () => {
+      const { updateMock } = setupTeacherWithClasses(sampleClasses);
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', '  10б информатика  ');
+      });
+      expect(res.error).toBe('Класс с таким названием уже существует');
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it('считает 0 обновлённых строк ошибкой и возвращает «Не удалось переименовать класс»', async () => {
+      const { updateMock, eqAfterUpdateMock, selectAfterUpdateMock } = setupTeacherWithClasses(
+        sampleClasses,
+        { data: [], error: null }
+      );
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', '9В');
+      });
+      expect(updateMock).toHaveBeenCalledWith({ name: '9В' });
+      expect(eqAfterUpdateMock).toHaveBeenCalledWith('id', 'class-1');
+      expect(selectAfterUpdateMock).toHaveBeenCalledWith('id');
+      expect(res.error).toBe('Не удалось переименовать класс');
+    });
+
+    it('при успехе обновляет класс, перезагружает список и отражает новое имя в classes', async () => {
+      const { updateMock, eqAfterUpdateMock, selectAfterUpdateMock } = setupTeacherWithClasses(
+        sampleClasses,
+        { data: [{ id: 'class-1' }], error: null }
+      );
+      const { result } = renderHook(() => useClasses());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let res!: { error: string | null };
+      await act(async () => {
+        res = await result.current.renameClass('class-1', '  9А Профиль  ');
+      });
+      expect(res).toEqual({ error: null });
+      expect(updateMock).toHaveBeenCalledWith({ name: '9А Профиль' });
+      expect(eqAfterUpdateMock).toHaveBeenCalledWith('id', 'class-1');
+      expect(selectAfterUpdateMock).toHaveBeenCalledWith('id');
+      expect(result.current.classes.find((c) => c.id === 'class-1')?.name).toBe('9А Профиль');
+    });
+  });
 });

@@ -692,7 +692,7 @@ const Task13Component: React.FC<{ taskData: Task13Data; state: TaskModuleState }
                 Нажмите сюда и вставьте (Ctrl+V) документ из редактора
               </span>
               <span className="text-xs text-slate-400 mt-1">
-                (MS Word, LibreOffice, Google Docs и др.)
+                Корректная проверка — при вставке из LibreOffice Writer
               </span>
             </div>
           )}

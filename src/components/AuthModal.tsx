@@ -547,6 +547,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 />
                 <Mail className="w-4 h-4 text-theme-text-muted absolute left-2.5 top-2.5 pointer-events-none" />
               </div>
+              <p className="text-[11px] text-theme-text-muted leading-relaxed pt-0.5">
+                Письмо придёт на почту, указанную при регистрации. Если у вас логин без настоящей почты (аккаунт создал учитель), восстановление письмом не работает
+              </p>
             </div>
 
             <button

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, KeyRound, Copy, ChevronDown, Zap, FileText, Layers, ClipboardList, Eye, Users, CheckCircle2, XCircle, X, Check } from 'lucide-react';
+import { ArrowLeft, KeyRound, Copy, ChevronDown, Zap, FileText, Layers, ClipboardList, Eye, Users, CheckCircle2, XCircle, X, Check, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllPages } from '../../lib/fetchAllPages';
 import { decodeSetShort, buildSet } from '../../set';
@@ -16,6 +16,7 @@ import {
   CATEGORY_FILTERS,
   getSessionCategory,
 } from '../../utils/sessionCategory';
+import { RenameNameModal } from '../../components/RenameNameModal';
 
 const PAGE_SIZE = 50;
 
@@ -91,6 +92,7 @@ export const StudentProfilePage: React.FC = () => {
   } | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [seedCopied, setSeedCopied] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
 
   const toggleCategory = (cat: HistoryCategory) => {
     setEnabledCategories((prev) => {
@@ -156,103 +158,106 @@ export const StudentProfilePage: React.FC = () => {
     }
   }, [studentId]);
 
-  useEffect(() => {
+  const fetchStudent = useCallback(async (withSpinner = true) => {
     if (!classId || !studentId) return;
-
-    const fetchStudent = async () => {
+    if (withSpinner) {
       setLoading(true);
+    }
+    try {
+      const { data } = await (supabase as any)
+        .from('class_members')
+        .select('joined_at, profiles(id, first_name, last_name, email, generated_login, generated_password)')
+        .eq('class_id', classId)
+        .eq('student_id', studentId)
+        .single();
+
+      if (data && data.profiles) {
+        setStudent({
+          id: data.profiles.id,
+          first_name: data.profiles.first_name || '',
+          last_name: data.profiles.last_name || '',
+          email: data.profiles.email || null,
+          generated_login: data.profiles.generated_login || null,
+          generated_password: data.profiles.generated_password || null,
+          joined_at: data.joined_at,
+        });
+      }
+
+      setAssignmentsLoading(true);
       try {
-        const { data } = await (supabase as any)
-          .from('class_members')
-          .select('joined_at, profiles(id, first_name, last_name, email, generated_login, generated_password)')
+        // a) получить все ДЗ класса
+        const { data: assignmentRows } = await (supabase as any)
+          .from('assignments')
+          .select('id, title, is_active, due_date, max_attempts, created_at, assignment_type')
           .eq('class_id', classId)
-          .eq('student_id', studentId)
-          .single();
+          .order('created_at', { ascending: false });
 
-        if (data && data.profiles) {
-          setStudent({
-            id: data.profiles.id,
-            first_name: data.profiles.first_name || '',
-            last_name: data.profiles.last_name || '',
-            email: data.profiles.email || null,
-            generated_login: data.profiles.generated_login || null,
-            generated_password: data.profiles.generated_password || null,
-            joined_at: data.joined_at,
-          });
+        // b) получить все сессии ученика по этим ДЗ
+        const assignmentIds = (assignmentRows || []).map((a: any) => a.id);
+        let sessionRows: any[] = [];
+        if (assignmentIds.length > 0) {
+          const { data: sData } = await (supabase as any)
+            .from('sessions')
+            .select('id, assignment_id, score, max_score, created_at, status')
+            .eq('user_id', studentId)
+            .in('assignment_id', assignmentIds)
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true });
+          sessionRows = sData || [];
         }
 
-        setAssignmentsLoading(true);
-        try {
-          // a) получить все ДЗ класса
-          const { data: assignmentRows } = await (supabase as any)
-            .from('assignments')
-            .select('id, title, is_active, due_date, max_attempts, created_at, assignment_type')
-            .eq('class_id', classId)
-            .order('created_at', { ascending: false });
-
-          // b) получить все сессии ученика по этим ДЗ
-          const assignmentIds = (assignmentRows || []).map((a: any) => a.id);
-          let sessionRows: any[] = [];
-          if (assignmentIds.length > 0) {
-            const { data: sData } = await (supabase as any)
-              .from('sessions')
-              .select('id, assignment_id, score, max_score, created_at, status')
-              .eq('user_id', studentId)
-              .in('assignment_id', assignmentIds)
-              .order('created_at', { ascending: true })
-              .order('id', { ascending: true });
-            sessionRows = sData || [];
-          }
-
-          // c) смержить
-          const sessionsByAssignment = new Map<string, any[]>();
-          for (const s of sessionRows) {
-            const arr = sessionsByAssignment.get(s.assignment_id) || [];
-            arr.push(s);
-            sessionsByAssignment.set(s.assignment_id, arr);
-          }
-
-          const merged: StudentAssignment[] = (assignmentRows || []).map((a: any) => {
-            const sessions = sessionsByAssignment.get(a.id) || [];
-            const completedSessions = sessions.filter((s: any) => s.status === 'completed');
-            const inProgressSession = sessions.find((s: any) => s.status === 'in_progress');
-            const best = completedSessions.reduce(
-              (prev: any, curr: any) => (prev && prev.score >= curr.score ? prev : curr),
-              null
-            );
-            return {
-              id: a.id,
-              title: a.title,
-              is_active: a.is_active,
-              due_date: a.due_date,
-              max_attempts: a.max_attempts ?? null,
-              created_at: a.created_at,
-              is_submitted: completedSessions.length > 0,
-              in_progress: !completedSessions.length && !!inProgressSession,
-              score: best ? best.score : null,
-              max_score: best ? best.max_score : null,
-              progress_score: inProgressSession?.score ?? null,
-              progress_max_score: inProgressSession?.max_score ?? null,
-              attempts: completedSessions.length,
-              best_session_id: best ? (best.id ?? null) : null,
-              in_progress_session_id: inProgressSession ? (inProgressSession.id ?? null) : null,
-              assignment_type: a.assignment_type ?? 'homework',
-            };
-          });
-
-          setAssignments(merged);
-        } finally {
-          setAssignmentsLoading(false);
+        // c) смержить
+        const sessionsByAssignment = new Map<string, any[]>();
+        for (const s of sessionRows) {
+          const arr = sessionsByAssignment.get(s.assignment_id) || [];
+          arr.push(s);
+          sessionsByAssignment.set(s.assignment_id, arr);
         }
 
-        await loadStats();
+        const merged: StudentAssignment[] = (assignmentRows || []).map((a: any) => {
+          const sessions = sessionsByAssignment.get(a.id) || [];
+          const completedSessions = sessions.filter((s: any) => s.status === 'completed');
+          const inProgressSession = sessions.find((s: any) => s.status === 'in_progress');
+          const best = completedSessions.reduce(
+            (prev: any, curr: any) => (prev && prev.score >= curr.score ? prev : curr),
+            null
+          );
+          return {
+            id: a.id,
+            title: a.title,
+            is_active: a.is_active,
+            due_date: a.due_date,
+            max_attempts: a.max_attempts ?? null,
+            created_at: a.created_at,
+            is_submitted: completedSessions.length > 0,
+            in_progress: !completedSessions.length && !!inProgressSession,
+            score: best ? best.score : null,
+            max_score: best ? best.max_score : null,
+            progress_score: inProgressSession?.score ?? null,
+            progress_max_score: inProgressSession?.max_score ?? null,
+            attempts: completedSessions.length,
+            best_session_id: best ? (best.id ?? null) : null,
+            in_progress_session_id: inProgressSession ? (inProgressSession.id ?? null) : null,
+            assignment_type: a.assignment_type ?? 'homework',
+          };
+        });
+
+        setAssignments(merged);
       } finally {
+        setAssignmentsLoading(false);
+      }
+
+      await loadStats();
+    } finally {
+      if (withSpinner) {
         setLoading(false);
       }
-    };
-
-    fetchStudent();
+    }
   }, [classId, studentId, loadStats]);
+
+  useEffect(() => {
+    fetchStudent(true);
+  }, [fetchStudent]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -353,6 +358,42 @@ export const StudentProfilePage: React.FC = () => {
     }
   };
 
+  const formatRenameError = (message: string): string => {
+    const lower = message.toLowerCase();
+    if (lower.includes('forbidden')) {
+      return 'Нет прав на изменение имени этого ученика';
+    }
+    if (lower.includes('invalid name')) {
+      return 'Некорректное имя или фамилия';
+    }
+    return message || 'Не удалось изменить имя';
+  };
+
+  const handleRenameSubmit = async (
+    first: string,
+    last: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const { error } = await (supabase as any).rpc('teacher_rename_student', {
+        p_student_id: student.id,
+        p_first_name: first,
+        p_last_name: last,
+      });
+
+      if (error) {
+        return { ok: false, error: formatRenameError(error.message || '') };
+      }
+
+      await fetchStudent(false);
+      return { ok: true };
+    } catch (err: unknown) {
+      return {
+        ok: false,
+        error: formatRenameError(err instanceof Error ? err.message : ''),
+      };
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -365,8 +406,18 @@ export const StudentProfilePage: React.FC = () => {
           <span>Назад к классу</span>
         </button>
 
-        <div className="p-4 rounded-xl border border-theme-border bg-theme-card space-y-1">
-          <h1 className="text-lg font-bold text-theme-text">{fullName}</h1>
+        <div className="p-4 rounded-xl border border-theme-border bg-theme-card space-y-2">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h1 className="text-lg font-bold text-theme-text">{fullName}</h1>
+            <button
+              type="button"
+              onClick={() => setIsRenameOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme-border bg-theme-bg text-xs font-medium text-theme-text-sec hover:text-theme-text hover:bg-theme-border/30 transition-colors cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Изменить имя</span>
+            </button>
+          </div>
           {student.email && (
             <p className="text-xs text-theme-text-muted">{student.email}</p>
           )}
@@ -985,6 +1036,14 @@ export const StudentProfilePage: React.FC = () => {
           </div>
         </div>
       )}
+      <RenameNameModal
+        isOpen={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        initialFirstName={student.first_name}
+        initialLastName={student.last_name}
+        confirmText="Имя изменится и у ученика в его личном кабинете, а также в журналах и экспортах. Выполненные работы сохранятся"
+        onSubmit={handleRenameSubmit}
+      />
     </div>
   );
 };

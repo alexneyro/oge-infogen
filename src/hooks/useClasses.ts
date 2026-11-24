@@ -302,6 +302,52 @@ export function useClasses() {
     }
   };
 
+  const renameClass = async (
+    classId: string,
+    newName: string
+  ): Promise<{ error: string | null }> => {
+    if (!user?.id) {
+      return { error: 'Пользователь не авторизован' };
+    }
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      return { error: 'Название класса не может быть пустым' };
+    }
+    if (trimmedName.length > 40) {
+      return { error: 'Название класса должно быть не длиннее 40 символов' };
+    }
+
+    const isDuplicate = classes.some(
+      (c) => c.id !== classId && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      return { error: 'Класс с таким названием уже существует' };
+    }
+
+    try {
+      const { data, error: updateErr } = await (supabase as any)
+        .from('classes')
+        .update({ name: trimmedName })
+        .eq('id', classId)
+        .select('id');
+
+      if (updateErr) {
+        return { error: updateErr.message };
+      }
+
+      if (!data || data.length === 0) {
+        return { error: 'Не удалось переименовать класс' };
+      }
+
+      await fetchClasses();
+      return { error: null };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Не удалось переименовать класс';
+      return { error: msg };
+    }
+  };
+
   useEffect(() => {
     if (prevUserIdRef.current !== user?.id) {
       prevUserIdRef.current = user?.id;
@@ -342,6 +388,7 @@ export function useClasses() {
     error,
     fetchClasses,
     createClass,
+    renameClass,
     deleteClass,
     addStudentByEmail,
     addStudentWithoutEmail,

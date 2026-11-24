@@ -14,12 +14,14 @@ import {
   ToggleRight,
   Plus,
   Download,
+  Pencil,
 } from 'lucide-react';
 import { useClasses } from '../../hooks/useClasses';
 import { useAssignments } from '../../hooks/useAssignments';
 import { supabase } from '../../lib/supabase';
 import { ClassAnalytics } from '../../components/ClassAnalytics';
 import { ClassExportModal } from '../../components/teacher/ClassExportModal';
+import { RenameClassModal } from '../../components/RenameClassModal';
 
 export const ClassDetailPage: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
@@ -30,6 +32,7 @@ export const ClassDetailPage: React.FC = () => {
     addStudentWithoutEmail,
     fetchClasses,
     removeStudent,
+    renameClass,
     deleteClass,
   } = useClasses();
 
@@ -44,6 +47,7 @@ export const ClassDetailPage: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeletingClass, setIsDeletingClass] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
 
   const { assignments, fetchAssignments, toggleAssignment, deleteAssignment } = useAssignments();
   const [confirmAssignmentModal, setConfirmAssignmentModal] = useState<{
@@ -186,11 +190,21 @@ export const ClassDetailPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <h3 className="text-lg font-bold text-theme-text">
-              {activeClass.name}
-            </h3>
+        <div className="flex items-center justify-between pt-1 gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-lg font-bold text-theme-text">
+                {activeClass.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRenameOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme-border bg-theme-bg text-xs font-medium text-theme-text-sec hover:text-theme-text hover:bg-theme-border/30 transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Переименовать</span>
+              </button>
+            </div>
             <p className="text-xs text-theme-text-muted">
               {activeClass.members.length}{' '}
               {activeClass.members.length === 1
@@ -688,6 +702,15 @@ export const ClassDetailPage: React.FC = () => {
         onClose={() => setShowExportModal(false)}
         className={activeClass.name}
         members={activeClass.members}
+      />
+      <RenameClassModal
+        isOpen={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        initialName={activeClass.name}
+        onSubmit={async (newName) => {
+          const res = await renameClass(activeClass.id, newName);
+          return res.error ? { ok: false, error: res.error } : { ok: true };
+        }}
       />
     </div>
   );

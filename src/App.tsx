@@ -1282,10 +1282,10 @@ export default function App() {
                       </div>
                       <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100/50 dark:border-amber-900/30 rounded-xl text-left flex flex-col h-full">
                         <h4 className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider leading-[1.2] mb-1.5">
-                          Набор — свой список заданий
+                          Аккаунт — задания от учителя
                         </h4>
                         <p className="text-[10px] text-theme-text-muted leading-relaxed flex-1">
-                          Задайте количество заданий каждого уровня, получите код и откройте набор потом по нему же.
+                          Вступите в класс по коду учителя: задания придут в личный кабинет, а статистика и история решений сохранятся.
                         </p>
                       </div>
                     </div>

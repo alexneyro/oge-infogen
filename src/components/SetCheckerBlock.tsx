@@ -1645,7 +1645,7 @@ export function SetCheckerBlock({ entries, currentSetCode, fileCodeLabel }: SetC
                                         ) : (
                                           <div className="flex flex-col items-center justify-center h-20 text-center text-slate-500">
                                             <span className="font-medium">Нажмите сюда и вставьте (Ctrl+V) документ из редактора</span>
-                                            <span className="text-[11px] text-slate-400 mt-1">(MS Word, LibreOffice, Google Docs и др.)</span>
+                                            <span className="text-[11px] text-slate-400 mt-1">Корректная проверка — при вставке из LibreOffice Writer</span>
                                           </div>
                                         )}
                                       </div>

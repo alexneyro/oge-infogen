@@ -1752,7 +1752,7 @@ export function SetBuilderView({
               aria-expanded={showTeacherBlock}
               className="px-3 py-2 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shrink-0 cursor-pointer bg-theme-bg border border-theme-border text-theme-text hover:bg-blue-50 dark:hover:bg-blue-950/40"
             >
-              <span>Для учителя</span>
+              <span>Проверка блокнотов</span>
               <ChevronDown
                 className={`h-3.5 w-3.5 transition-transform ${showTeacherBlock ? 'rotate-180' : ''}`}
               />
@@ -1768,7 +1768,7 @@ export function SetBuilderView({
                 className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-sm font-medium transition-colors shadow-xs cursor-pointer"
               >
                 <span>📋</span>
-                <span>Выдать как ДЗ</span>
+                <span>Выдать как ДЗ / классную</span>
               </button>
             )}
           </div>

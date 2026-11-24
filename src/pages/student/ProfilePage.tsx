@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { KeyRound, Copy, ChevronDown, ChevronUp, Eye, EyeOff, Check, AlertCircle, Mail } from 'lucide-react';
+import { KeyRound, Copy, ChevronDown, ChevronUp, Eye, EyeOff, Check, AlertCircle, Mail, Pencil } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { fetchAllPages } from '../../lib/fetchAllPages';
 import { aggregateTaskStats, StatsSessionInput } from '../../utils/taskStats';
 import { MIN_PASSWORD_LENGTH } from '../../lib/passwordPolicy';
+import { RenameNameModal } from '../../components/RenameNameModal';
 
 type ExtendedProfile = NonNullable<ReturnType<typeof useAuth>['profile']> & {
   generated_login?: string | null;
@@ -12,16 +13,19 @@ type ExtendedProfile = NonNullable<ReturnType<typeof useAuth>['profile']> & {
 };
 
 export const ProfilePage: React.FC = () => {
-  const { profile: rawProfile, user } = useAuth();
+  const { profile: rawProfile, user, refreshProfile } = useAuth();
   const profile = rawProfile as ExtendedProfile | null;
   const [showCredentials, setShowCredentials] = useState(false);
   const [metrics, setMetrics] = useState<{ totalSolved: number; correct: number } | null>(null);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
@@ -69,6 +73,37 @@ export const ProfilePage: React.FC = () => {
     };
   }, [user?.id]);
 
+  const handleRenameSubmit = async (
+    first: string,
+    last: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    if (!user?.id) {
+      return { ok: false, error: 'Пользователь не найден' };
+    }
+    try {
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({
+          first_name: first,
+          last_name: last,
+          display_name: `${first} ${last}`,
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        return { ok: false, error: error.message || 'Не удалось сохранить имя и фамилию' };
+      }
+
+      await refreshProfile();
+      return { ok: true };
+    } catch (err: unknown) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Не удалось сохранить имя и фамилию',
+      };
+    }
+  };
+
   const handleChangeEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError(null);
@@ -93,6 +128,10 @@ export const ProfilePage: React.FC = () => {
     e.preventDefault();
     setPwError(null);
     setPwSuccess(false);
+    if (!currentPassword) {
+      setPwError('Введите текущий пароль');
+      return;
+    }
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
       setPwError(`Пароль должен быть минимум ${MIN_PASSWORD_LENGTH} символов`);
       return;
@@ -101,15 +140,44 @@ export const ProfilePage: React.FC = () => {
       setPwError('Пароли не совпадают');
       return;
     }
+    if (newPassword === currentPassword) {
+      setPwError('Новый пароль должен отличаться от старого');
+      return;
+    }
+    if (!user?.email) {
+      setPwError('Не удалось определить email пользователя');
+      return;
+    }
+
     setPwLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setPwLoading(false);
-    if (error) {
-      setPwError(error.message);
-    } else {
-      setPwSuccess(true);
-      setNewPassword('');
-      setConfirmPassword('');
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signInError) {
+        const msg = (signInError.message || '').toLowerCase();
+        if (msg.includes('rate limit') || (signInError as { status?: number }).status === 429) {
+          setPwError('Слишком много попыток. Подождите немного');
+        } else {
+          setPwError('Текущий пароль неверный');
+        }
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setPwError(error.message);
+      } else {
+        setPwSuccess(true);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } catch {
+      setPwError('Не удалось проверить текущий пароль');
+    } finally {
+      setPwLoading(false);
     }
   };
 
@@ -145,6 +213,14 @@ export const ProfilePage: React.FC = () => {
               <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 shrink-0">
                 Ученик
               </span>
+              <button
+                type="button"
+                onClick={() => setIsRenameOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-theme-border bg-theme-bg text-xs font-medium text-theme-text-sec hover:text-theme-text hover:bg-theme-border/30 transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Изменить имя</span>
+              </button>
             </div>
             {(profile?.email || user?.email) && (
               <div className="text-sm text-theme-text-muted truncate">
@@ -264,11 +340,36 @@ export const ProfilePage: React.FC = () => {
 
       {/* Смена пароля */}
       <div className="bg-theme-card rounded-2xl border border-theme-border p-6">
-        <div className="flex items-center gap-1.5 mb-4">
+        <div className={`flex items-center gap-1.5 ${profile?.generated_login ? 'mb-1' : 'mb-4'}`}>
           <KeyRound className="w-4 h-4 text-theme-text-muted" />
           <h3 className="text-sm font-semibold text-theme-text">Сменить пароль</h3>
         </div>
+        {profile?.generated_login && (
+          <p className="text-xs text-theme-text-muted mb-3">
+            Запомните новый пароль: у аккаунта без настоящей почты восстановить его письмом нельзя
+          </p>
+        )}
         <form onSubmit={handleChangePassword} className="space-y-3">
+          <div className="relative max-w-md">
+            <input
+              type={showCurrent ? 'text' : 'password'}
+              placeholder="Текущий пароль"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              disabled={pwLoading}
+              className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10 disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(p => !p)}
+              disabled={pwLoading}
+              aria-label={showCurrent ? 'Скрыть пароль' : 'Показать пароль'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
           <div className="grid md:grid-cols-2 gap-3">
             <div className="relative">
               <input
@@ -276,10 +377,16 @@ export const ProfilePage: React.FC = () => {
                 placeholder="Новый пароль"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10"
+                disabled={pwLoading}
+                className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10 disabled:opacity-60"
               />
-              <button type="button" onClick={() => setShowNew(p => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setShowNew(p => !p)}
+                disabled={pwLoading}
+                aria-label={showNew ? 'Скрыть пароль' : 'Показать пароль'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
@@ -289,10 +396,16 @@ export const ProfilePage: React.FC = () => {
                 placeholder="Повторите новый пароль"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10"
+                disabled={pwLoading}
+                className="w-full rounded-xl border border-theme-border bg-theme-bg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500/40 pr-10 disabled:opacity-60"
               />
-              <button type="button" onClick={() => setShowConfirm(p => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(p => !p)}
+                disabled={pwLoading}
+                aria-label={showConfirm ? 'Скрыть пароль' : 'Показать пароль'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
@@ -319,13 +432,22 @@ export const ProfilePage: React.FC = () => {
           )}
           <button
             type="submit"
-            disabled={pwLoading || !newPassword || !confirmPassword}
+            disabled={pwLoading || !currentPassword || newPassword.length < MIN_PASSWORD_LENGTH || newPassword !== confirmPassword}
             className="px-4 py-2 text-sm rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors cursor-pointer"
           >
             {pwLoading ? 'Сохранение...' : 'Сменить пароль'}
           </button>
         </form>
       </div>
+
+      <RenameNameModal
+        isOpen={isRenameOpen}
+        onClose={() => setIsRenameOpen(false)}
+        initialFirstName={profile?.first_name ?? ''}
+        initialLastName={profile?.last_name ?? ''}
+        confirmText="Имя изменится в вашем профиле и будет видно учителю. Старые результаты останутся за вами"
+        onSubmit={handleRenameSubmit}
+      />
     </div>
   );
 };
