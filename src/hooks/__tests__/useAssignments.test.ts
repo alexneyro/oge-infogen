@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
 
-const { useAuthMock, fromMock } = vi.hoisted(() => ({
+const { useAuthMock, fromMock, sendNotificationToClassMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   fromMock: vi.fn(),
+  sendNotificationToClassMock: vi.fn(),
 }));
 
 vi.mock('../useAuth', () => ({
@@ -14,6 +15,10 @@ vi.mock('../../lib/supabase', () => ({
   supabase: {
     from: fromMock,
   },
+}));
+
+vi.mock('../../lib/notifications', () => ({
+  sendNotificationToClass: sendNotificationToClassMock,
 }));
 
 import { useAssignments } from '../useAssignments';
@@ -334,6 +339,294 @@ describe('useAssignments', () => {
     });
     expect(result.current.error).toBe('Assignments failed');
     expect(result.current.hasClasses).toBeNull();
+  });
+
+  it('createAssignment без studentIds (весь класс) ставит audience="class" и не вставляет в assignment_targets', async () => {
+    useAuthMock.mockReturnValue({
+      user: { id: 'teacher-1' },
+      profile: { id: 'teacher-1', role: 'teacher' },
+      session: null,
+      loading: false,
+    });
+    sendNotificationToClassMock.mockResolvedValue(undefined);
+
+    const insertedAssignments: any[] = [];
+    const targetInserts: any[] = [];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'assignments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+          insert: (row: any) => {
+            insertedAssignments.push(row);
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: 'a-class' }, error: null }),
+              }),
+            };
+          },
+        };
+      }
+      if (table === 'assignment_targets') {
+        return {
+          insert: (rows: any) => {
+            targetInserts.push(rows);
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const { result } = renderHook(() => useAssignments());
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res!: { error: string | null; id?: string };
+    await act(async () => {
+      res = await result.current.createAssignment({
+        classId: 'c-1',
+        title: 'ДЗ всему классу',
+        variantSeed: 'SEED1',
+        setConfig: null,
+        dueDate: null,
+        maxAttempts: null,
+        hideReview: false,
+        assignmentType: 'homework',
+      });
+    });
+
+    expect(res).toEqual({ error: null, id: 'a-class' });
+    expect(insertedAssignments).toHaveLength(1);
+    expect(insertedAssignments[0].audience).toBe('class');
+    expect(targetInserts).toHaveLength(0);
+    expect(sendNotificationToClassMock).toHaveBeenCalledWith(
+      'c-1',
+      'teacher-1',
+      'new_assignment',
+      expect.objectContaining({ assignmentId: 'a-class' }),
+      undefined
+    );
+  });
+
+  it('createAssignment с пустым studentIds=[] не допускает audience="selected" (ставит audience="class" и не вставляет targets)', async () => {
+    useAuthMock.mockReturnValue({
+      user: { id: 'teacher-1' },
+      profile: { id: 'teacher-1', role: 'teacher' },
+      session: null,
+      loading: false,
+    });
+    sendNotificationToClassMock.mockResolvedValue(undefined);
+
+    const insertedAssignments: any[] = [];
+    const targetInserts: any[] = [];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'assignments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+          insert: (row: any) => {
+            insertedAssignments.push(row);
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: 'a-empty' }, error: null }),
+              }),
+            };
+          },
+        };
+      }
+      if (table === 'assignment_targets') {
+        return {
+          insert: (rows: any) => {
+            targetInserts.push(rows);
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const { result } = renderHook(() => useAssignments());
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res!: { error: string | null; id?: string };
+    await act(async () => {
+      res = await result.current.createAssignment({
+        classId: 'c-1',
+        title: 'ДЗ пустой список',
+        variantSeed: null,
+        setConfig: null,
+        dueDate: null,
+        maxAttempts: null,
+        hideReview: false,
+        assignmentType: 'homework',
+        studentIds: [],
+      });
+    });
+
+    expect(res).toEqual({ error: null, id: 'a-empty' });
+    expect(insertedAssignments[0].audience).toBe('class');
+    expect(targetInserts).toHaveLength(0);
+    expect(sendNotificationToClassMock).toHaveBeenCalledWith(
+      'c-1',
+      'teacher-1',
+      'new_assignment',
+      expect.any(Object),
+      undefined
+    );
+  });
+
+  it('createAssignment с выбранными studentIds вставляет audience="selected", assignment_targets и передаёт их в sendNotificationToClass', async () => {
+    useAuthMock.mockReturnValue({
+      user: { id: 'teacher-1' },
+      profile: { id: 'teacher-1', role: 'teacher' },
+      session: null,
+      loading: false,
+    });
+    sendNotificationToClassMock.mockResolvedValue(undefined);
+
+    const insertedAssignments: any[] = [];
+    const targetInserts: any[] = [];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'assignments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+          insert: (row: any) => {
+            insertedAssignments.push(row);
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: 'a-sel' }, error: null }),
+              }),
+            };
+          },
+        };
+      }
+      if (table === 'assignment_targets') {
+        return {
+          insert: (rows: any) => {
+            targetInserts.push(rows);
+            return Promise.resolve({ error: null });
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const { result } = renderHook(() => useAssignments());
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res!: { error: string | null; id?: string };
+    await act(async () => {
+      res = await result.current.createAssignment({
+        classId: 'c-1',
+        title: 'Индивидуальное ДЗ',
+        variantSeed: null,
+        setConfig: null,
+        dueDate: null,
+        maxAttempts: null,
+        hideReview: false,
+        assignmentType: 'classwork',
+        studentIds: ['s-1', 's-2', 's-1'],
+      });
+    });
+
+    expect(res).toEqual({ error: null, id: 'a-sel' });
+    expect(insertedAssignments[0].audience).toBe('selected');
+    expect(targetInserts).toEqual([
+      [
+        { assignment_id: 'a-sel', student_id: 's-1' },
+        { assignment_id: 'a-sel', student_id: 's-2' },
+      ],
+    ]);
+    expect(sendNotificationToClassMock).toHaveBeenCalledWith(
+      'c-1',
+      'teacher-1',
+      'new_assignment',
+      expect.objectContaining({ assignmentId: 'a-sel' }),
+      ['s-1', 's-2']
+    );
+  });
+
+  it('createAssignment при ошибке вставки assignment_targets удаляет созданное задание и возвращает ошибку', async () => {
+    useAuthMock.mockReturnValue({
+      user: { id: 'teacher-1' },
+      profile: { id: 'teacher-1', role: 'teacher' },
+      session: null,
+      loading: false,
+    });
+
+    const deletedEqCalls: Array<[string, unknown]> = [];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'assignments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { id: 'a-rollback' }, error: null }),
+            }),
+          }),
+          delete: () => ({
+            eq: (col: string, val: unknown) => {
+              deletedEqCalls.push([col, val]);
+              return Promise.resolve({ error: null });
+            },
+          }),
+        };
+      }
+      if (table === 'assignment_targets') {
+        return {
+          insert: () => Promise.resolve({ error: { message: 'FK failed' } }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const { result } = renderHook(() => useAssignments());
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    let res!: { error: string | null; id?: string };
+    await act(async () => {
+      res = await result.current.createAssignment({
+        classId: 'c-1',
+        title: 'Сломанное ДЗ',
+        variantSeed: null,
+        setConfig: null,
+        dueDate: null,
+        maxAttempts: null,
+        hideReview: false,
+        assignmentType: 'homework',
+        studentIds: ['s-1'],
+      });
+    });
+
+    expect(res).toEqual({ error: 'Не удалось выдать задание выбранным ученикам' });
+    expect(deletedEqCalls).toEqual([['id', 'a-rollback']]);
+    expect(sendNotificationToClassMock).not.toHaveBeenCalled();
   });
 });
 

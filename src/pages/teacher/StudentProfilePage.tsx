@@ -70,6 +70,7 @@ export const StudentProfilePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'assignments' | 'stats' | 'history'>('assignments');
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
   const [assignmentTypeFilter, setAssignmentTypeFilter] = useState<'all' | 'homework' | 'classwork'>('all');
   const [statsFilter, setStatsFilter] = useState<StatsFilter>('all');
   const [rawSessions, setRawSessions] = useState<StatsSessionInput[]>([]);
@@ -184,25 +185,51 @@ export const StudentProfilePage: React.FC = () => {
       }
 
       setAssignmentsLoading(true);
+      setAssignmentsError(null);
       try {
-        // a) получить все ДЗ класса
-        const { data: assignmentRows } = await (supabase as any)
+        // a) получить ДЗ класса с учётом audience
+        const { data: assignmentRows, error: assignErr } = await (supabase as any)
           .from('assignments')
-          .select('id, title, is_active, due_date, max_attempts, created_at, assignment_type')
+          .select('id, title, is_active, due_date, max_attempts, created_at, assignment_type, audience')
           .eq('class_id', classId)
           .order('created_at', { ascending: false });
 
-        // b) получить все сессии ученика по этим ДЗ
-        const assignmentIds = (assignmentRows || []).map((a: any) => a.id);
+        if (assignErr) throw assignErr;
+
+        const allAssignmentRows = assignmentRows || [];
+        const selectedIds = allAssignmentRows
+          .filter((a: any) => a.audience === 'selected')
+          .map((a: any) => a.id);
+
+        let visibleAssignmentRows = allAssignmentRows;
+        if (selectedIds.length > 0) {
+          const { data: targetRows, error: targetErr } = await (supabase as any)
+            .from('assignment_targets')
+            .select('assignment_id')
+            .in('assignment_id', selectedIds)
+            .eq('student_id', studentId);
+
+          if (targetErr) throw targetErr;
+
+          const targetSet = new Set((targetRows || []).map((t: any) => t.assignment_id));
+          visibleAssignmentRows = allAssignmentRows.filter(
+            (a: any) => a.audience !== 'selected' || targetSet.has(a.id)
+          );
+        }
+
+        // b) получить все сессии ученика по отфильтрованным ДЗ
+        const assignmentIds = visibleAssignmentRows.map((a: any) => a.id);
         let sessionRows: any[] = [];
         if (assignmentIds.length > 0) {
-          const { data: sData } = await (supabase as any)
+          const { data: sData, error: sessionsErr } = await (supabase as any)
             .from('sessions')
             .select('id, assignment_id, score, max_score, created_at, status')
             .eq('user_id', studentId)
             .in('assignment_id', assignmentIds)
             .order('created_at', { ascending: true })
             .order('id', { ascending: true });
+
+          if (sessionsErr) throw sessionsErr;
           sessionRows = sData || [];
         }
 
@@ -214,7 +241,7 @@ export const StudentProfilePage: React.FC = () => {
           sessionsByAssignment.set(s.assignment_id, arr);
         }
 
-        const merged: StudentAssignment[] = (assignmentRows || []).map((a: any) => {
+        const merged: StudentAssignment[] = visibleAssignmentRows.map((a: any) => {
           const sessions = sessionsByAssignment.get(a.id) || [];
           const completedSessions = sessions.filter((s: any) => s.status === 'completed');
           const inProgressSession = sessions.find((s: any) => s.status === 'in_progress');
@@ -243,6 +270,9 @@ export const StudentProfilePage: React.FC = () => {
         });
 
         setAssignments(merged);
+      } catch {
+        setAssignmentsError('Не удалось загрузить задания');
+        setAssignments([]);
       } finally {
         setAssignmentsLoading(false);
       }
@@ -496,6 +526,17 @@ export const StudentProfilePage: React.FC = () => {
           <div className="space-y-3">
             <div className="animate-pulse h-16 rounded-xl bg-theme-border/30" />
             <div className="animate-pulse h-16 rounded-xl bg-theme-border/30" />
+          </div>
+        ) : assignmentsError ? (
+          <div className="py-12 px-4 text-center rounded-2xl border border-theme-border bg-theme-card space-y-3">
+            <p className="text-sm text-theme-text-sec">{assignmentsError}</p>
+            <button
+              type="button"
+              onClick={() => fetchStudent(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
+            >
+              Повторить
+            </button>
           </div>
         ) : assignments.length === 0 ? (
           <div className="py-12 text-center rounded-2xl border border-theme-border bg-theme-card">

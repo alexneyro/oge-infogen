@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Eye, EyeOff, User, Mail, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Eye, EyeOff, User, Mail, Lock, CheckCircle2, AlertCircle, GraduationCap } from 'lucide-react';
 import { signInWithEmail, signUpWithEmail, resetPassword } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../lib/database.types';
@@ -9,12 +9,19 @@ import { MIN_PASSWORD_LENGTH } from '../lib/passwordPolicy';
 export interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialScreen?: 'login' | 'register';
+  showInviteNotice?: boolean;
 }
 
 type ViewMode = 'login' | 'register' | 'reset';
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const [view, setView] = useState<ViewMode>('login');
+export const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onClose,
+  initialScreen = 'login',
+  showInviteNotice = false,
+}) => {
+  const [view, setView] = useState<ViewMode>(initialScreen);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -35,20 +42,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   // Reset form when modal opens or view changes
   useEffect(() => {
     if (isOpen) {
-      setView('login');
+      setView(initialScreen);
       setEmail('');
       setPassword('');
       setConfirmPassword('');
       setFirstName('');
       setLastName('');
+      setRole('student');
       setShowPassword(false);
       setShowConfirmPassword(false);
+      if (initialScreen === 'register') {
+        const pending = localStorage.getItem('pendingInviteCode');
+        setInviteCode(pending ?? '');
+      }
     } else {
       setInviteCode('');
     }
     setErrorMessage(null);
     setSuccessMessage(null);
-  }, [isOpen]);
+  }, [isOpen, initialScreen]);
 
   useEffect(() => {
     if (isOpen && view === 'register') {
@@ -246,6 +258,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Invite notice banner */}
+        {showInviteNotice && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start space-x-2 text-xs text-blue-800 dark:text-blue-200">
+            <GraduationCap className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">Вы вступаете в класс по приглашению</span>
+          </div>
+        )}
 
         {/* Success message banner */}
         {successMessage && (

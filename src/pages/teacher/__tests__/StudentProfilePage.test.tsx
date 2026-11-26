@@ -1,11 +1,77 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
-const { navigateMock, rpcMock, classMemberSingleMock } = vi.hoisted(() => ({
-  navigateMock: vi.fn(),
-  rpcMock: vi.fn(),
-  classMemberSingleMock: vi.fn(),
-}));
+const {
+  navigateMock,
+  rpcMock,
+  classMemberSingleMock,
+  assignmentsOrderMock,
+  assignmentTargetsInMock,
+  assignmentTargetsEqMock,
+  sessionsInMock,
+  sessionsOrderIdMock,
+  fromMock,
+} = vi.hoisted(() => {
+  const assignmentsOrderMock = vi.fn();
+  const assignmentTargetsEqMock = vi.fn();
+  const assignmentTargetsInMock = vi.fn(() => ({ eq: assignmentTargetsEqMock }));
+  const sessionsOrderIdMock = vi.fn();
+  const sessionsOrderCreatedMock = vi.fn(() => ({ order: sessionsOrderIdMock }));
+  const sessionsInMock = vi.fn(() => ({ order: sessionsOrderCreatedMock }));
+  const classMemberSingleMock = vi.fn();
+
+  const fromMock = vi.fn((table: string) => {
+    if (table === 'class_members') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: classMemberSingleMock,
+            })),
+          })),
+        })),
+      };
+    }
+    if (table === 'assignments') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: assignmentsOrderMock,
+          })),
+        })),
+      };
+    }
+    if (table === 'assignment_targets') {
+      return {
+        select: vi.fn(() => ({
+          in: assignmentTargetsInMock,
+        })),
+      };
+    }
+    if (table === 'sessions') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            in: sessionsInMock,
+          })),
+        })),
+      };
+    }
+    return {};
+  });
+
+  return {
+    navigateMock: vi.fn(),
+    rpcMock: vi.fn(),
+    classMemberSingleMock,
+    assignmentsOrderMock,
+    assignmentTargetsInMock,
+    assignmentTargetsEqMock,
+    sessionsInMock,
+    sessionsOrderIdMock,
+    fromMock,
+  };
+});
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateMock,
@@ -28,29 +94,7 @@ vi.mock('../../../lib/fetchAllPages', () => ({
 vi.mock('../../../lib/supabase', () => ({
   supabase: {
     rpc: rpcMock,
-    from: vi.fn((table: string) => {
-      if (table === 'class_members') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: classMemberSingleMock,
-              })),
-            })),
-          })),
-        };
-      }
-      if (table === 'assignments') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              order: vi.fn().mockResolvedValue({ data: [] }),
-            })),
-          })),
-        };
-      }
-      return {};
-    }),
+    from: fromMock,
   },
 }));
 
@@ -73,6 +117,9 @@ describe('StudentProfilePage (учитель) — переименование �
       },
     });
     rpcMock.mockResolvedValue({ error: null });
+    assignmentsOrderMock.mockResolvedValue({ data: [], error: null });
+    assignmentTargetsEqMock.mockResolvedValue({ data: [], error: null });
+    sessionsOrderIdMock.mockResolvedValue({ data: [], error: null });
   });
 
   afterEach(() => {
@@ -191,5 +238,149 @@ describe('StudentProfilePage (учитель) — переименование �
 
     expect(rpcMock).not.toHaveBeenCalled();
     expect(screen.getByText(/Имя:/)).toBeTruthy();
+  });
+});
+
+describe('StudentProfilePage (учитель) — фильтрация вкладки «Задания» по audience и assignment_targets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    classMemberSingleMock.mockResolvedValue({
+      data: {
+        joined_at: '2026-01-10T00:00:00Z',
+        profiles: {
+          id: 'student-1',
+          first_name: 'Иван',
+          last_name: 'Петров',
+          email: 'ivan@example.com',
+          generated_login: null,
+          generated_password: null,
+        },
+      },
+    });
+    assignmentsOrderMock.mockResolvedValue({ data: [], error: null });
+    assignmentTargetsEqMock.mockResolvedValue({ data: [], error: null });
+    sessionsOrderIdMock.mockResolvedValue({ data: [], error: null });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  const makeAssignment = (id: string, title: string, audience: 'class' | 'selected') => ({
+    id,
+    title,
+    is_active: true,
+    due_date: null,
+    max_attempts: null,
+    created_at: '2026-02-01T10:00:00Z',
+    assignment_type: 'homework',
+    audience,
+  });
+
+  it('показывает задание с audience="class" и не делает лишний запрос к assignment_targets', async () => {
+    assignmentsOrderMock.mockResolvedValueOnce({
+      data: [makeAssignment('a-class', 'Общее задание', 'class')],
+      error: null,
+    });
+
+    render(<StudentProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Общее задание')).toBeTruthy();
+    });
+
+    expect(fromMock).not.toHaveBeenCalledWith('assignment_targets');
+    expect(sessionsInMock).toHaveBeenCalledWith('assignment_id', ['a-class']);
+  });
+
+  it('показывает задание с audience="selected", если для ученика есть строка в assignment_targets', async () => {
+    assignmentsOrderMock.mockResolvedValueOnce({
+      data: [makeAssignment('a-sel', 'Индивидуальное задание', 'selected')],
+      error: null,
+    });
+    assignmentTargetsEqMock.mockResolvedValueOnce({
+      data: [{ assignment_id: 'a-sel' }],
+      error: null,
+    });
+
+    render(<StudentProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Индивидуальное задание')).toBeTruthy();
+    });
+
+    expect(assignmentTargetsInMock).toHaveBeenCalledWith('assignment_id', ['a-sel']);
+    expect(assignmentTargetsEqMock).toHaveBeenCalledWith('student_id', 'student-1');
+    expect(sessionsInMock).toHaveBeenCalledWith('assignment_id', ['a-sel']);
+  });
+
+  it('скрывает задание с audience="selected", если для ученика нет строки в assignment_targets', async () => {
+    assignmentsOrderMock.mockResolvedValueOnce({
+      data: [makeAssignment('a-other', 'Чужое задание', 'selected')],
+      error: null,
+    });
+    assignmentTargetsEqMock.mockResolvedValueOnce({
+      data: [],
+      error: null,
+    });
+
+    render(<StudentProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Заданий для этого класса пока нет')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('Чужое задание')).toBeNull();
+    expect(sessionsInMock).not.toHaveBeenCalled();
+  });
+
+  it('в смешанном списке оставляет только задания для класса и выданные этому ученику', async () => {
+    assignmentsOrderMock.mockResolvedValueOnce({
+      data: [
+        makeAssignment('a-class', 'Классное ДЗ', 'class'),
+        makeAssignment('a-mine', 'Моё выбранное ДЗ', 'selected'),
+        makeAssignment('a-foreign', 'Чужое выбранное ДЗ', 'selected'),
+      ],
+      error: null,
+    });
+    assignmentTargetsEqMock.mockResolvedValueOnce({
+      data: [{ assignment_id: 'a-mine' }],
+      error: null,
+    });
+
+    render(<StudentProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Классное ДЗ')).toBeTruthy();
+      expect(screen.getByText('Моё выбранное ДЗ')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('Чужое выбранное ДЗ')).toBeNull();
+    expect(assignmentTargetsInMock).toHaveBeenCalledWith('assignment_id', ['a-mine', 'a-foreign']);
+    expect(sessionsInMock).toHaveBeenCalledWith('assignment_id', ['a-class', 'a-mine']);
+  });
+
+  it('при ошибке загрузки assignment_targets показывает сообщение об ошибке и не показывает список заданий', async () => {
+    assignmentsOrderMock.mockResolvedValueOnce({
+      data: [
+        makeAssignment('a-class', 'Классное ДЗ', 'class'),
+        makeAssignment('a-sel', 'Выбранное ДЗ', 'selected'),
+      ],
+      error: null,
+    });
+    assignmentTargetsEqMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Network error' },
+    });
+
+    render(<StudentProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Не удалось загрузить задания')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('Классное ДЗ')).toBeNull();
+    expect(screen.queryByText('Выбранное ДЗ')).toBeNull();
+    expect(sessionsInMock).not.toHaveBeenCalled();
   });
 });

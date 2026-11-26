@@ -70,6 +70,9 @@ export default function App() {
   const { classes } = useClasses();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalFromInvite, setAuthModalFromInvite] = useState(false);
+  const hasInviteOnLoadRef = useRef(false);
+  const inviteAutoOpenDoneRef = useRef(false);
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [pendingAssignment, setPendingAssignment] = useState<{ title: string; seed: string; setConfig: Record<string, unknown> } | null>(null);
   const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
@@ -444,8 +447,20 @@ export default function App() {
     if (invite !== null && invite.length === 6) {
       localStorage.setItem('pendingInviteCode', invite.toUpperCase());
       window.history.replaceState({}, '', window.location.pathname);
+      hasInviteOnLoadRef.current = true;
     }
   }, []);
+
+  useEffect(() => {
+    if (authLoading || !hasInviteOnLoadRef.current || inviteAutoOpenDoneRef.current) {
+      return;
+    }
+    inviteAutoOpenDoneRef.current = true;
+    if (!user) {
+      setAuthModalFromInvite(true);
+      setShowAuthModal(true);
+    }
+  }, [authLoading, user]);
 
   useEffect(() => {
     const pendingCode = localStorage.getItem('pendingAssignmentCode');
@@ -738,9 +753,9 @@ export default function App() {
     setAssignmentModalOpen(true);
   };
 
-  const handleAssignmentSubmit = async (params: { classId: string; title: string; dueDate: string | null; maxAttempts: number | null; hideReview?: boolean; assignmentType: 'homework' | 'classwork' }) => {
+  const handleAssignmentSubmit = async (params: { classId: string; title: string; dueDate: string | null; maxAttempts: number | null; hideReview?: boolean; assignmentType: 'homework' | 'classwork'; studentIds?: string[] }) => {
     if (!pendingAssignment) return;
-    await createAssignment({
+    const res = await createAssignment({
       classId: params.classId,
       title: params.title,
       variantSeed: pendingAssignment.seed,
@@ -749,7 +764,11 @@ export default function App() {
       maxAttempts: params.maxAttempts,
       hideReview: params.hideReview ?? false,
       assignmentType: params.assignmentType,
+      studentIds: params.studentIds,
     });
+    if (res.error) {
+      throw new Error(res.error);
+    }
   };
 
   const handleSelectTask = (id: number) => {
@@ -1834,7 +1853,12 @@ export default function App() {
 
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => {
+          setShowAuthModal(false);
+          setAuthModalFromInvite(false);
+        }}
+        initialScreen={authModalFromInvite ? 'register' : 'login'}
+        showInviteNotice={authModalFromInvite}
       />
 
     </div>

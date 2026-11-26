@@ -173,4 +173,55 @@ describe('teacher AssignmentsPage — фильтр по классам', () => {
     expect(screen.getByText('Показано 50 из 60')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Показать ещё' })).toBeTruthy();
   });
+
+  it('для audience="selected" показывает пометку «Выбранные ученики», а для audience="class" не показывает', () => {
+    useAssignmentsMock.mockReturnValue({
+      assignments: [
+        {
+          id: 'a-sel',
+          class_id: 'c9a',
+          class_name: '9А',
+          title: 'Для выбранных',
+          variant_seed: null,
+          set_config: null,
+          due_date: null,
+          max_attempts: null,
+          hide_review: false,
+          assignment_type: 'homework',
+          audience: 'selected',
+          created_at: '2026-11-10T10:00:00Z',
+          is_active: true,
+        },
+        {
+          id: 'a-cls',
+          class_id: 'c9a',
+          class_name: '9А',
+          title: 'Для всего класса',
+          variant_seed: null,
+          set_config: null,
+          due_date: null,
+          max_attempts: null,
+          hide_review: false,
+          assignment_type: 'homework',
+          audience: 'class',
+          created_at: '2026-11-10T10:00:00Z',
+          is_active: true,
+        },
+      ],
+      loading: false,
+      error: null,
+      fetchAssignments: fetchAssignmentsMock,
+      toggleAssignment: toggleAssignmentMock,
+      deleteAssignment: deleteAssignmentMock,
+    });
+
+    render(<AssignmentsPage />);
+
+    const badges = screen.getAllByText('Выбранные ученики');
+    expect(badges).toHaveLength(1);
+    const selectedRow = screen.getByText('Для выбранных').closest('tr')!;
+    const classRow = screen.getByText('Для всего класса').closest('tr')!;
+    expect(selectedRow.textContent).toContain('Выбранные ученики');
+    expect(classRow.textContent).not.toContain('Выбранные ученики');
+  });
 });

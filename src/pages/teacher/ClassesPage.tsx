@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useClasses } from '../../hooks/useClasses';
 import { compareClassNames } from '../../utils/compareClassNames';
+import { pluralRu } from '../../utils/pluralize';
 
 export const ClassesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -163,11 +164,7 @@ export const ClassesPage: React.FC = () => {
                   </h3>
                   <p className="text-xs text-theme-text-muted mt-0.5">
                     {cls.members.length}{' '}
-                    {cls.members.length === 1
-                      ? 'ученик'
-                      : cls.members.length >= 2 && cls.members.length <= 4
-                      ? 'ученика'
-                      : 'учеников'}
+                    {pluralRu(cls.members.length, 'ученик', 'ученика', 'учеников')}
                   </p>
                 </div>
 

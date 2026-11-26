@@ -71,13 +71,26 @@ export interface Database {
           due_date: string | null
           created_at: string
           is_active: boolean
+          audience: 'class' | 'selected'
         }
-        Insert: Omit<Database['public']['Tables']['assignments']['Row'], 'id' | 'created_at' | 'is_active'> & {
+        Insert: Omit<Database['public']['Tables']['assignments']['Row'], 'id' | 'created_at' | 'is_active' | 'audience'> & {
           id?: string
           created_at?: string
           is_active?: boolean
+          audience?: 'class' | 'selected'
         }
         Update: Partial<Database['public']['Tables']['assignments']['Insert']>
+      }
+      assignment_targets: {
+        Row: {
+          assignment_id: string
+          student_id: string
+        }
+        Insert: {
+          assignment_id: string
+          student_id: string
+        }
+        Update: Partial<Database['public']['Tables']['assignment_targets']['Insert']>
       }
       assignment_attempts: {
         Row: {

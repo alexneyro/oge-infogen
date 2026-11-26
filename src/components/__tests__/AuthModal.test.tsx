@@ -317,5 +317,40 @@ describe('AuthModal — регистрация и код класса', () => {
       ).toBeTruthy();
     });
   });
+
+  it('l) с initialScreen="register" и showInviteNotice=true сразу открывается на регистрации с плашкой, кодом, ролью «Ученик» и переключением на вход', () => {
+    localStorage.setItem('pendingInviteCode', 'GCWB2F');
+
+    render(
+      <AuthModal
+        isOpen={true}
+        onClose={vi.fn()}
+        initialScreen="register"
+        showInviteNotice={true}
+      />
+    );
+
+    expect(screen.getByText('Регистрация')).toBeTruthy();
+    expect(screen.getByText('Вы вступаете в класс по приглашению')).toBeTruthy();
+    expect((screen.getByPlaceholderText('GCWB2F') as HTMLInputElement).value).toBe('GCWB2F');
+    expect((screen.getByLabelText('Ученик') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole('button', { name: 'Создать аккаунт' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Уже есть аккаунт\?\s*Войти/i }));
+
+    expect(screen.getByText('Вход в аккаунт')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeTruthy();
+    expect(localStorage.getItem('pendingInviteCode')).toBe('GCWB2F');
+  });
+
+  it('m) без initialScreen и showInviteNotice открывается на входе без плашки приглашения', () => {
+    localStorage.setItem('pendingInviteCode', 'GCWB2F');
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} />);
+
+    expect(screen.getByText('Вход в аккаунт')).toBeTruthy();
+    expect(screen.queryByText('Вы вступаете в класс по приглашению')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeTruthy();
+  });
 });
 

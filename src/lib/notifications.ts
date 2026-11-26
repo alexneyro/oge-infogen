@@ -39,8 +39,11 @@ export async function sendNotificationToClass(
   classId: string,
   excludeUserId: string,
   type: string,
-  payload: object
+  payload: object,
+  onlyStudentIds?: string[]
 ): Promise<void> {
+  if (onlyStudentIds && onlyStudentIds.length === 0) return;
+
   const { data: members, error } = await (supabase as any)
     .from('class_members')
     .select('student_id')
@@ -52,8 +55,12 @@ export async function sendNotificationToClass(
 
   if (!members || members.length === 0) return;
 
+  const onlySet = onlyStudentIds ? new Set(onlyStudentIds) : null;
   const validMembers = members.filter(
-    (m: { student_id?: string }) => m.student_id && m.student_id !== excludeUserId
+    (m: { student_id?: string }) =>
+      m.student_id &&
+      m.student_id !== excludeUserId &&
+      (!onlySet || onlySet.has(m.student_id))
   );
 
   await Promise.all(

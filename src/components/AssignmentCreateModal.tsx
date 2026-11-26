@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, AlertCircle, BookOpen, Users } from 'lucide-react';
-import type { ClassWithMembers } from '../hooks/useClasses';
+import { X, AlertCircle, BookOpen, Users, ChevronDown, Search } from 'lucide-react';
+import type { ClassWithMembers, ClassMemberWithProfile } from '../hooks/useClasses';
 import { compareClassNames } from '../utils/compareClassNames';
 
 export interface AssignmentCreateModalProps {
@@ -18,7 +18,16 @@ export interface AssignmentCreateModalProps {
     maxAttempts: number | null;
     hideReview?: boolean;
     assignmentType: 'homework' | 'classwork';
+    studentIds?: string[];
   }) => Promise<void>;
+}
+
+function formatStudentName(member: ClassMemberWithProfile): string {
+  const last = (member.profiles?.last_name ?? '').trim();
+  const first = (member.profiles?.first_name ?? '').trim();
+  if (last && first) return `${last} ${first}`;
+  if (last || first) return last || first;
+  return member.profiles?.email || 'Ученик';
 }
 
 export function AssignmentCreateModal({
@@ -28,7 +37,18 @@ export function AssignmentCreateModal({
   classes,
   onSubmit,
 }: AssignmentCreateModalProps) {
-  const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
+  const sortedClasses = useMemo(
+    () => [...classes].sort((a, b) => compareClassNames(a.name, b.name)),
+    [classes]
+  );
+
+  const [selectedClassId, setSelectedClassId] = useState<string>(sortedClasses[0]?.id || '');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => {
+    const firstClass = sortedClasses[0];
+    return new Set((firstClass?.members ?? []).map((m) => m.student_id));
+  });
+  const [isRecipientsOpen, setIsRecipientsOpen] = useState(false);
+  const [recipientSearch, setRecipientSearch] = useState('');
   const [assignmentType, setAssignmentType] = useState<'homework' | 'classwork'>('homework');
   const [title, setTitle] = useState<string>(defaultTitle);
   const [dueDate, setDueDate] = useState<string>('');
@@ -38,7 +58,59 @@ export function AssignmentCreateModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
+
   const today = new Date().toISOString().split('T')[0];
+
+  const selectedClass = useMemo(
+    () => sortedClasses.find((c) => c.id === selectedClassId) ?? null,
+    [sortedClasses, selectedClassId]
+  );
+
+  const sortedMembers = useMemo(() => {
+    const members = selectedClass?.members ?? [];
+    return [...members].sort((a, b) => {
+      const lastA = (a.profiles?.last_name ?? '').trim();
+      const lastB = (b.profiles?.last_name ?? '').trim();
+      const cmpLast = lastA.localeCompare(lastB, 'ru');
+      if (cmpLast !== 0) return cmpLast;
+      const firstA = (a.profiles?.first_name ?? '').trim();
+      const firstB = (b.profiles?.first_name ?? '').trim();
+      const cmpFirst = firstA.localeCompare(firstB, 'ru');
+      if (cmpFirst !== 0) return cmpFirst;
+      return formatStudentName(a).localeCompare(formatStudentName(b), 'ru');
+    });
+  }, [selectedClass]);
+
+  const totalMembersCount = sortedMembers.length;
+  const selectedMembersCount = useMemo(
+    () => sortedMembers.filter((m) => selectedStudentIds.has(m.student_id)).length,
+    [sortedMembers, selectedStudentIds]
+  );
+
+  const allSelected = totalMembersCount > 0 && selectedMembersCount === totalMembersCount;
+  const noneSelected = totalMembersCount > 0 && selectedMembersCount === 0;
+  const partiallySelected = selectedMembersCount > 0 && selectedMembersCount < totalMembersCount;
+
+  const filteredMembers = useMemo(() => {
+    const query = recipientSearch.trim().toLowerCase();
+    if (!query) return sortedMembers;
+    return sortedMembers.filter((m) => {
+      const last = (m.profiles?.last_name ?? '').trim().toLowerCase();
+      const first = (m.profiles?.first_name ?? '').trim().toLowerCase();
+      const fullLastFirst = `${last} ${first}`.trim();
+      const fullFirstLast = `${first} ${last}`.trim();
+      const email = (m.profiles?.email ?? '').toLowerCase();
+      return (
+        last.includes(query) ||
+        first.includes(query) ||
+        fullLastFirst.includes(query) ||
+        fullFirstLast.includes(query) ||
+        email.includes(query)
+      );
+    });
+  }, [sortedMembers, recipientSearch]);
 
   useEffect(() => {
     if (dueDate === today) {
@@ -51,8 +123,12 @@ export function AssignmentCreateModal({
   }, [dueDate, today]);
 
   useEffect(() => {
-    if (isOpen) {
-      setSelectedClassId(classes[0]?.id || '');
+    if (isOpen && !wasOpenRef.current) {
+      const initialClass = sortedClasses[0];
+      setSelectedClassId(initialClass?.id || '');
+      setSelectedStudentIds(new Set((initialClass?.members ?? []).map((m) => m.student_id)));
+      setIsRecipientsOpen(false);
+      setRecipientSearch('');
       setAssignmentType('homework');
       setTitle(defaultTitle);
       setDueDate('');
@@ -61,14 +137,32 @@ export function AssignmentCreateModal({
       setHideReview(false);
       setIsSubmitting(false);
       setError(null);
-    } else {
+    } else if (!isOpen && wasOpenRef.current) {
+      setIsRecipientsOpen(false);
+      setRecipientSearch('');
       setAssignmentType('homework');
       setDueDate('');
       setDueTime('');
       setMaxAttempts('');
       setHideReview(false);
     }
-  }, [isOpen, defaultTitle, classes]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, defaultTitle, sortedClasses]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!selectedClassId && sortedClasses.length > 0) {
+      const first = sortedClasses[0];
+      setSelectedClassId(first.id);
+      setSelectedStudentIds(new Set((first.members ?? []).map((m) => m.student_id)));
+    }
+  }, [isOpen, selectedClassId, sortedClasses]);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = partiallySelected;
+    }
+  }, [partiallySelected, isRecipientsOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -82,6 +176,33 @@ export function AssignmentCreateModal({
   }, [isOpen, onClose]);
 
   if (!isOpen || typeof document === 'undefined') return null;
+
+  const handleClassChange = (nextClassId: string) => {
+    setSelectedClassId(nextClassId);
+    setRecipientSearch('');
+    const nextClass = sortedClasses.find((c) => c.id === nextClassId);
+    setSelectedStudentIds(new Set((nextClass?.members ?? []).map((m) => m.student_id)));
+  };
+
+  const handleToggleAll = () => {
+    if (allSelected) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(sortedMembers.map((m) => m.student_id)));
+    }
+  };
+
+  const handleToggleStudent = (studentId: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,22 +218,35 @@ export function AssignmentCreateModal({
       return;
     }
 
+    if (noneSelected) {
+      setError('Выберите хотя бы одного ученика');
+      return;
+    }
+
     if (maxAttempts && (parseInt(maxAttempts) < 1 || parseInt(maxAttempts) > 99)) {
       setError('Количество попыток должно быть от 1 до 99');
       return;
     }
+
+    const studentIdsToSubmit =
+      totalMembersCount === 0 || allSelected
+        ? []
+        : sortedMembers
+            .filter((m) => selectedStudentIds.has(m.student_id))
+            .map((m) => m.student_id);
 
     setIsSubmitting(true);
     try {
       await onSubmit({
         classId: selectedClassId,
         title: title.trim(),
-        dueDate: assignmentType === 'classwork' 
+        dueDate: assignmentType === 'classwork'
           ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           : (dueDate && dueTime ? `${dueDate}T${dueTime}` : dueDate || null),
         maxAttempts: maxAttempts ? parseInt(maxAttempts) : null,
         hideReview,
         assignmentType,
+        studentIds: studentIdsToSubmit,
       });
       onClose();
     } catch (err: unknown) {
@@ -128,7 +262,7 @@ export function AssignmentCreateModal({
         className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-theme-card rounded-2xl border border-theme-border shadow-2xl p-6 w-full max-w-md mx-4 space-y-4">
+      <div className="relative bg-theme-card rounded-2xl border border-theme-border shadow-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto space-y-4">
         <div className="flex items-center justify-between border-b border-theme-border pb-3">
           <h3 className="text-base font-bold text-theme-text">Выдать как ДЗ</h3>
           <button
@@ -160,22 +294,110 @@ export function AssignmentCreateModal({
             </label>
             <select
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
+              onChange={(e) => handleClassChange(e.target.value)}
               className="w-full bg-theme-bg border border-theme-border rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {classes.length === 0 ? (
+              {sortedClasses.length === 0 ? (
                 <option value="">Нет доступных классов</option>
               ) : (
-                [...classes]
-                  .sort((a, b) => compareClassNames(a.name, b.name))
-                  .map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))
+                sortedClasses.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))
               )}
             </select>
           </div>
+
+          {totalMembersCount > 0 && (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-theme-text-muted uppercase tracking-wider">
+                Кому
+              </label>
+              <button
+                type="button"
+                aria-expanded={isRecipientsOpen}
+                onClick={() => setIsRecipientsOpen((prev) => !prev)}
+                className="w-full bg-theme-bg border border-theme-border rounded-xl px-3.5 py-2 text-sm text-theme-text flex items-center justify-between hover:border-blue-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
+              >
+                <span>
+                  {allSelected
+                    ? 'Весь класс'
+                    : `Выбрано ${selectedMembersCount} из ${totalMembersCount}`}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-theme-text-muted transition-transform ${
+                    isRecipientsOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {isRecipientsOpen && (
+                <div className="border border-theme-border rounded-xl bg-theme-bg p-3 space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-theme-text cursor-pointer select-none shrink-0">
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={handleToggleAll}
+                        className="w-4 h-4 rounded border-theme-border text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>Все</span>
+                    </label>
+                    <div className="relative flex-1">
+                      <Search className="w-3.5 h-3.5 text-theme-text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={recipientSearch}
+                        onChange={(e) => setRecipientSearch(e.target.value)}
+                        placeholder="Поиск по фамилии или имени"
+                        className="w-full bg-theme-card border border-theme-border rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-theme-text placeholder:text-theme-text-muted/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto divide-y divide-theme-border/40 pr-1">
+                    {filteredMembers.length === 0 ? (
+                      <p className="py-3 text-center text-xs text-theme-text-muted">
+                        Ученики не найдены
+                      </p>
+                    ) : (
+                      filteredMembers.map((member) => {
+                        const checked = selectedStudentIds.has(member.student_id);
+                        return (
+                          <label
+                            key={member.student_id}
+                            className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg hover:bg-theme-card/70 cursor-pointer select-none text-xs text-theme-text"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleToggleStudent(member.student_id)}
+                              className="w-4 h-4 rounded border-theme-border text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                            />
+                            <span className="truncate">{formatStudentName(member)}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="pt-1 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-theme-text-muted">
+                    <span>
+                      Выбрано {selectedMembersCount} из {totalMembersCount}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {noneSelected && (
+                <p className="text-xs text-rose-600 dark:text-rose-400">
+                  Выберите хотя бы одного ученика
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-theme-text-muted uppercase tracking-wider">
@@ -186,7 +408,6 @@ export function AssignmentCreateModal({
                 type="button"
                 onClick={() => {
                   setAssignmentType('homework');
-                  // сбрасываем срок если был автоустановлен
                 }}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center justify-center gap-2 ${
                   assignmentType === 'homework'
@@ -299,7 +520,7 @@ export function AssignmentCreateModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || classes.length === 0}
+              disabled={isSubmitting || classes.length === 0 || noneSelected}
               className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors shadow-xs cursor-pointer"
             >
               {isSubmitting ? 'Сохранение...' : 'Выдать ДЗ'}

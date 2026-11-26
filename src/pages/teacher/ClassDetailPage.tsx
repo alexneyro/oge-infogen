@@ -22,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import { ClassAnalytics } from '../../components/ClassAnalytics';
 import { ClassExportModal } from '../../components/teacher/ClassExportModal';
 import { RenameClassModal } from '../../components/RenameClassModal';
+import { pluralRu } from '../../utils/pluralize';
 
 export const ClassDetailPage: React.FC = () => {
   const { classId } = useParams<{ classId: string }>();
@@ -207,11 +208,7 @@ export const ClassDetailPage: React.FC = () => {
             </div>
             <p className="text-xs text-theme-text-muted">
               {activeClass.members.length}{' '}
-              {activeClass.members.length === 1
-                ? 'ученик'
-                : activeClass.members.length >= 2 && activeClass.members.length <= 4
-                ? 'ученика'
-                : 'учеников'}
+              {pluralRu(activeClass.members.length, 'ученик', 'ученика', 'учеников')}
             </p>
           </div>
 
@@ -280,7 +277,7 @@ export const ClassDetailPage: React.FC = () => {
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(
-                        `https://oge-infogen.ru?invite=${activeClass.invite_code}`
+                        `${window.location.origin}/?invite=${activeClass.invite_code}`
                       );
                       const key = 'invite-link-' + activeClass.invite_code;
                       setCopiedCode(key);

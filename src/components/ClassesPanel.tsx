@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useClasses } from '../hooks/useClasses';
 import { supabase } from '../lib/supabase';
+import { pluralRu } from '../utils/pluralize';
 
 export interface ClassesPanelProps {
   isOpen: boolean;
@@ -278,7 +279,7 @@ export const ClassesPanel: React.FC<ClassesPanelProps> = ({ isOpen, onClose }) =
                           {cls.name}
                         </h3>
                         <p className="text-xs text-theme-text-muted mt-0.5">
-                          {cls.members.length} {cls.members.length === 1 ? 'ученик' : (cls.members.length >= 2 && cls.members.length <= 4 ? 'ученика' : 'учеников')}
+                          {cls.members.length} {pluralRu(cls.members.length, 'ученик', 'ученика', 'учеников')}
                         </p>
                       </div>
 
@@ -337,7 +338,7 @@ export const ClassesPanel: React.FC<ClassesPanelProps> = ({ isOpen, onClose }) =
                       {activeClass.name}
                     </h3>
                     <p className="text-xs text-theme-text-muted">
-                      {activeClass.members.length} {activeClass.members.length === 1 ? 'ученик' : (activeClass.members.length >= 2 && activeClass.members.length <= 4 ? 'ученика' : 'учеников')}
+                      {activeClass.members.length} {pluralRu(activeClass.members.length, 'ученик', 'ученика', 'учеников')}
                     </p>
                   </div>
 

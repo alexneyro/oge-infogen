@@ -188,7 +188,14 @@ export const AssignmentsPage: React.FC = () => {
                   className="hover:bg-theme-bg/40 transition-colors cursor-pointer"
                 >
                   <td className="py-3.5 px-4 font-semibold text-theme-text">
-                    {assignment.title}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{assignment.title}</span>
+                      {assignment.audience === 'selected' && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          Выбранные ученики
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 text-theme-text-sec">
                     {assignment.class_name || '—'}

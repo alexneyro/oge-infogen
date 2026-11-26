@@ -63,6 +63,7 @@ export interface AssignmentDetail {
   due_date: string | null;
   max_attempts: number | null;
   is_active: boolean;
+  audience: 'class' | 'selected';
   created_at: string;
   set_config: Record<string, unknown> | null;
 }
@@ -195,6 +196,7 @@ export const AssignmentDetailPage: React.FC = () => {
           due_date: assignRow.due_date,
           max_attempts: assignRow.max_attempts ?? null,
           is_active: assignRow.is_active,
+          audience: assignRow.audience ?? 'class',
           created_at: assignRow.created_at,
           set_config: assignRow.set_config,
         };
@@ -207,6 +209,19 @@ export const AssignmentDetailPage: React.FC = () => {
           .eq('class_id', detail.class_id);
 
         if (memberErr) throw memberErr;
+
+        let targetMembers = memberRows || [];
+        if (detail.audience === 'selected') {
+          const { data: targetRows, error: targetErr } = await (supabase as any)
+            .from('assignment_targets')
+            .select('student_id')
+            .eq('assignment_id', assignmentId);
+
+          if (targetErr) throw targetErr;
+
+          const targetIdSet = new Set((targetRows || []).map((t: any) => t.student_id));
+          targetMembers = targetMembers.filter((m: any) => targetIdSet.has(m.student_id));
+        }
 
         // c) запрос сессий
         const { data: sessionRows, error: sessionErr } = await (supabase as any)
@@ -226,7 +241,7 @@ export const AssignmentDetailPage: React.FC = () => {
           sessionsByUser.set(s.user_id, arr);
         }
 
-        const merged: StudentResult[] = (memberRows || []).map((m: any) => {
+        const merged: StudentResult[] = targetMembers.map((m: any) => {
           const sessions = sessionsByUser.get(m.student_id) || [];
           const completedSessions = sessions.filter((s: any) => s.status === 'completed');
           const best = completedSessions.reduce(
@@ -369,7 +384,7 @@ export const AssignmentDetailPage: React.FC = () => {
         {assignment && (
           <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-theme-border">
             <div className="space-y-1">
-              <div className="flex items-center space-x-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-lg font-bold text-theme-text">{assignment.title}</h1>
                 <span
                   className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold ${
@@ -380,6 +395,11 @@ export const AssignmentDetailPage: React.FC = () => {
                 >
                   {assignment.is_active ? 'Активно' : 'Неактивно'}
                 </span>
+                {assignment.audience === 'selected' && (
+                  <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                    Выдано выбранным ученикам: {totalStudents}
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-theme-text-muted">
                 <span>Класс: <strong className="text-theme-text-sec">{assignment.class_name}</strong></span>
@@ -476,7 +496,11 @@ export const AssignmentDetailPage: React.FC = () => {
           {results.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-center space-y-2 rounded-2xl border border-theme-border bg-theme-card">
               <Users className="w-10 h-10 text-theme-text-muted stroke-1" />
-              <p className="text-sm text-theme-text-sec">В классе пока нет учеников</p>
+              <p className="text-sm text-theme-text-sec">
+                {assignment.audience === 'selected'
+                  ? 'Нет выбранных учеников в текущем составе класса'
+                  : 'В классе пока нет учеников'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-theme-border bg-theme-card shadow-xs">

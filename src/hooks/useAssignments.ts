@@ -13,6 +13,7 @@ export interface Assignment {
   max_attempts: number | null;
   hide_review: boolean;
   assignment_type: 'homework' | 'classwork';
+  audience: 'class' | 'selected';
   created_at: string;
   is_active: boolean;
   class_name?: string;
@@ -41,13 +42,14 @@ export function useAssignments() {
         // Учитель видит все свои ДЗ через классы
         const { data, error: err } = await (supabase as any)
           .from('assignments')
-          .select('*, classes(name)')
+          .select('id, class_id, title, variant_seed, set_config, due_date, max_attempts, hide_review, assignment_type, audience, created_at, is_active, classes(name)')
           .eq('classes.teacher_id', targetUserId)
           .order('created_at', { ascending: false });
         if (requestIdRef.current !== reqId) return;
         if (err) throw err;
         const mapped = (data || []).map((a: any) => ({
           ...a,
+          audience: a.audience ?? 'class',
           class_name: a.classes?.name ?? null,
         }));
         setHasClasses(null);
@@ -103,9 +105,15 @@ export function useAssignments() {
     maxAttempts: number | null;
     hideReview: boolean;
     assignmentType: 'homework' | 'classwork';
+    studentIds?: string[];
   }): Promise<{ error: string | null; id?: string }> => {
     if (!user?.id) return { error: 'Не авторизован' };
     try {
+      const targetStudentIds = Array.from(
+        new Set((params.studentIds ?? []).filter((id) => typeof id === 'string' && id.length > 0))
+      );
+      const audience: 'class' | 'selected' = targetStudentIds.length > 0 ? 'selected' : 'class';
+
       const { data, error: err } = await (supabase as any)
         .from('assignments')
         .insert({
@@ -118,27 +126,60 @@ export function useAssignments() {
           max_attempts: params.maxAttempts,
           hide_review: params.hideReview,
           assignment_type: params.assignmentType,
+          audience,
           is_active: true,
           created_at: new Date().toISOString(),
         })
         .select('id')
         .single();
       if (err) throw err;
+
+      const newId: string | undefined = (data as any)?.[0]?.id || data?.id;
+      if (!newId) {
+        throw new Error('Не удалось получить идентификатор созданного задания');
+      }
+
+      if (audience === 'selected') {
+        const targetRows = targetStudentIds.map((studentId) => ({
+          assignment_id: newId,
+          student_id: studentId,
+        }));
+        const { error: targetsErr } = await (supabase as any)
+          .from('assignment_targets')
+          .insert(targetRows);
+        if (targetsErr) {
+          try {
+            await (supabase as any)
+              .from('assignments')
+              .delete()
+              .eq('id', newId);
+          } catch (cleanupErr) {
+            console.error('[createAssignment] Failed to rollback assignment:', cleanupErr);
+          }
+          return { error: 'Не удалось выдать задание выбранным ученикам' };
+        }
+      }
+
       try {
-        const newId = (data as any)?.[0]?.id || data?.id;
-        await sendNotificationToClass(params.classId, user.id, 'new_assignment', {
-          title: 'Новое задание',
-          assignmentTitle: params.title,
-          message: `Преподаватель выдал вам задание «${params.title}»`,
-          assignmentId: newId,
-          dueDate: params.dueDate ?? null,
-          maxAttempts: params.maxAttempts ?? null,
-        });
+        await sendNotificationToClass(
+          params.classId,
+          user.id,
+          'new_assignment',
+          {
+            title: 'Новое задание',
+            assignmentTitle: params.title,
+            message: `Преподаватель выдал вам задание «${params.title}»`,
+            assignmentId: newId,
+            dueDate: params.dueDate ?? null,
+            maxAttempts: params.maxAttempts ?? null,
+          },
+          audience === 'selected' ? targetStudentIds : undefined
+        );
       } catch (notifErr) {
         console.error('[createAssignment] Failed to send notification to class:', notifErr);
       }
       await fetchAssignments();
-      return { error: null, id: data.id };
+      return { error: null, id: newId };
     } catch (e: unknown) {
       return { error: e instanceof Error ? e.message : 'Ошибка создания ДЗ' };
     }
